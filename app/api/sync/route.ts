@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { syncTreeOrders } from '@/lib/sync';
+import { syncTreeOrdersV2 } from '@/lib/sync-v2'; // WICHTIG: v2 importieren
 
 export async function GET() {
     try {
-        await syncTreeOrders();
-        return NextResponse.json({ success: true, message: 'Sync completed' });
-    } catch (error) {
-        return NextResponse.json({ success: false, error: 'Sync failed' }, { status: 500 });
+        await syncTreeOrdersV2(); // V2 aufrufen
+        return NextResponse.json({ success: true, message: 'Sync V2 completed' });
+    } catch (error: any) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }

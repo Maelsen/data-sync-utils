@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const MEWS_API_URL = 'https://api.mews.com/api/connector/v1';
+// Demo endpoint for sandbox credentials
+const MEWS_API_URL = 'https://api.mews-demo.com/api/connector/v1';
 
 interface MewsConfig {
     clientToken: string;
@@ -15,6 +16,10 @@ export class MewsClient {
     }
 
     private async request(endpoint: string, data: any = {}) {
+        // --- DEBUG: SPION ---
+        console.log(`📡 Mews Request an: ${MEWS_API_URL}/${endpoint}`);
+        // --------------------
+
         try {
             const response = await axios.post(`${MEWS_API_URL}/${endpoint}`, {
                 ClientToken: this.config.clientToken,
@@ -23,25 +28,33 @@ export class MewsClient {
             });
             return response.data;
         } catch (error: any) {
-            console.error(`Mews API Error [${endpoint}]:`, error.response?.data || error.message);
+            console.error(`❌ Mews API Error [${endpoint}]:`, error.response?.data || error.message);
             throw error;
         }
     }
 
-    async getReservations(startUtc: string, endUtc: string) {
-        // https://mews-systems.gitbook.io/connector-api/operations/reservations#get-all-reservations
-        return this.request('reservations/getAll', {
-            StartUtc: startUtc,
-            EndUtc: endUtc,
-            Extent: {
-                Products: true, // We need products to see the "Tree" upsells
-                Items: true,
-            },
-        });
+    async getReservations(startUtc: string, endUtc: string, cursor?: string) {
+        const payload = cursor
+            ? { Cursor: cursor }
+            : {
+                  StartUtc: startUtc,
+                  EndUtc: endUtc,
+                  Extent: {
+                      Products: true,
+                      Items: true, // posted charges
+                      ProductAssignments: true, // pre-stay upsells
+                      Orders: true,
+                      OrderItems: true, // same products but in orders structure
+                      Services: true,
+                  },
+              };
+
+        return this.request('reservations/getAll', payload);
     }
 
     async getConfiguration() {
-        // Useful to get services/products IDs if needed
         return this.request('configuration/get');
     }
 }
+
+export default { MewsClient };

@@ -10,6 +10,9 @@ const MEWS_ACCESS_TOKEN = process.env.MEWS_ACCESS_TOKEN || '';
 const TREE_PRODUCT_NAME = 'Tree'; // The name of the product in Mews
 
 export async function syncTreeOrders() {
+    console.log("🔒 Token Check:");
+    console.log("   Client Token startet mit:", MEWS_CLIENT_TOKEN.substring(0, 5));
+    console.log("   Access Token startet mit:", MEWS_ACCESS_TOKEN.substring(0, 5));
     if (!MEWS_CLIENT_TOKEN || !MEWS_ACCESS_TOKEN) {
         console.error('Missing Mews credentials');
         return;
@@ -21,7 +24,7 @@ export async function syncTreeOrders() {
     });
 
     // Sync for the last 3 days to catch any updates or missed items
-    const startUtc = subDays(startOfDay(new Date()), 3).toISOString();
+    const startUtc = subDays(startOfDay(new Date()), 30).toISOString();
     const endUtc = endOfDay(new Date()).toISOString();
 
     console.log(`Syncing Mews data from ${startUtc} to ${endUtc}...`);

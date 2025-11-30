@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const MEWS_API_URL = 'https://api.mews.com/api/connector/v1';
+// Demo endpoint for sandbox credentials
+const MEWS_API_URL = 'https://api.mews-demo.com/api/connector/v1';
 
 interface MewsConfig {
     clientToken: string;
@@ -28,16 +29,24 @@ export class MewsClient {
         }
     }
 
-    async getReservations(startUtc: string, endUtc: string) {
+    async getReservations(startUtc: string, endUtc: string, cursor?: string) {
         // https://mews-systems.gitbook.io/connector-api/operations/reservations#get-all-reservations
-        return this.request('reservations/getAll', {
-            StartUtc: startUtc,
-            EndUtc: endUtc,
-            Extent: {
-                Products: true, // We need products to see the "Tree" upsells
-                Items: true,
-            },
-        });
+        const payload = cursor
+            ? { Cursor: cursor }
+            : {
+                  StartUtc: startUtc,
+                  EndUtc: endUtc,
+                  Extent: {
+                      Products: true,
+                      Items: true, // posted charges
+                      ProductAssignments: true, // pre-stay upsells
+                      Orders: true,
+                      OrderItems: true,
+                      Services: true,
+                  },
+              };
+
+        return this.request('reservations/getAll', payload);
     }
 
     async getConfiguration() {
@@ -45,3 +54,5 @@ export class MewsClient {
         return this.request('configuration/get');
     }
 }
+
+export default { MewsClient };
