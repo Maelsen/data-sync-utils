@@ -6,6 +6,7 @@ import axios from 'axios';
 export default function Dashboard() {
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [generating, setGenerating] = useState(false);
 
     const fetchStats = async () => {
         try {
@@ -22,6 +23,22 @@ export default function Dashboard() {
         setLoading(true);
         await axios.get('/api/sync');
         await fetchStats();
+        setLoading(false);
+    };
+
+    // Die Funktion für den neuen Knopf
+    const triggerInvoices = async () => {
+        setGenerating(true);
+        try {
+            const response = await axios.post('/api/invoices/generate');
+            alert(response.data.message || "Rechnungen erstellt!");
+            await fetchStats();
+        } catch (error: any) {
+            console.error(error);
+            alert("Fehler: " + (error.response?.data?.error || error.message));
+        } finally {
+            setGenerating(false);
+        }
     };
 
     useEffect(() => {
@@ -35,14 +52,27 @@ export default function Dashboard() {
             <div className="max-w-6xl mx-auto">
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-3xl font-bold text-gray-800">Click A Tree Dashboard</h1>
-                    <button
-                        onClick={triggerSync}
-                        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
-                    >
-                        Sync Now
-                    </button>
+                    
+                    <div className="space-x-4">
+                        <button
+                            onClick={triggerSync}
+                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+                        >
+                            Sync Mews Data
+                        </button>
+
+                        {/* Der neue grüne Knopf */}
+                        <button
+                            onClick={triggerInvoices}
+                            disabled={generating}
+                            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition disabled:opacity-50"
+                        >
+                            {generating ? 'Erstelle PDF...' : 'Generate Invoices'}
+                        </button>
+                    </div>
                 </div>
 
+                {/* Statistik Kacheln */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div className="bg-white p-6 rounded-lg shadow">
                         <h3 className="text-gray-500 text-sm uppercase">Total Trees Planted</h3>
@@ -51,6 +81,7 @@ export default function Dashboard() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Linke Seite: Bestellungen */}
                     <div className="bg-white p-6 rounded-lg shadow">
                         <h2 className="text-xl font-semibold mb-4">Recent Orders</h2>
                         <div className="overflow-x-auto">
@@ -69,7 +100,7 @@ export default function Dashboard() {
                                             <td className="py-2">{new Date(order.bookedAt).toLocaleDateString()}</td>
                                             <td className="py-2">{order.hotel.name}</td>
                                             <td className="py-2">{order.quantity}</td>
-                                            <td className="py-2">{order.amount} {order.currency}</td>
+                                            <td className="py-2">{order.amount.toFixed(2)} {order.currency}</td>
                                         </tr>
                                     ))}
                                     {stats?.recentOrders.length === 0 && (
@@ -80,6 +111,7 @@ export default function Dashboard() {
                         </div>
                     </div>
 
+                    {/* Rechte Seite: Rechnungen */}
                     <div className="bg-white p-6 rounded-lg shadow">
                         <h2 className="text-xl font-semibold mb-4">Recent Invoices</h2>
                         <div className="overflow-x-auto">
@@ -97,9 +129,12 @@ export default function Dashboard() {
                                         <tr key={inv.id} className="border-b last:border-0">
                                             <td className="py-2">{inv.month}/{inv.year}</td>
                                             <td className="py-2">{inv.hotel.name}</td>
-                                            <td className="py-2">{inv.totalAmount} EUR</td>
+                                            <td className="py-2">{inv.totalAmount.toFixed(2)} EUR</td>
                                             <td className="py-2">
-                                                <a href={inv.pdfPath} target="_blank" className="text-blue-600 hover:underline">Download</a>
+                                                {/* Der Download Link */}
+                                                <a href={inv.pdfPath} target="_blank" className="text-blue-600 hover:underline font-medium">
+                                                    Download PDF
+                                                </a>
                                             </td>
                                         </tr>
                                     ))}
