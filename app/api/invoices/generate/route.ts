@@ -6,20 +6,19 @@ export async function POST() {
     try {
         console.log("📝 Starte Rechnungsstellung...");
 
-        // 1. Alle Hotels laden
         const hotels = await prisma.hotel.findMany();
         const results = [];
 
-        // Aktueller Monat und Jahr
+        // ÄNDERUNG: Wir nehmen den VORMONAT, nicht den aktuellen
         const now = new Date();
-        const month = now.getMonth() + 1; // JS Monate sind 0-basiert
+        now.setMonth(now.getMonth() - 1); // Gehe einen Monat zurück (handhabt auch Jahreswechsel automatisch)
+        
+        const month = now.getMonth() + 1; // JS Monate sind 0-basiert, daher +1
         const year = now.getFullYear();
 
-        // 2. Für jedes Hotel eine Rechnung generieren
-        for (const hotel of hotels) {
-            console.log(`Verarbeite Hotel: ${hotel.name}...`);
+        console.log(`Generiere Rechnungen für Zeitraum: ${month}/${year}`);
 
-            // Ruft deine existierende Logik in lib/invoice.ts auf
+        for (const hotel of hotels) {
             const pdfPath = await generateInvoice(hotel.id, year, month);
 
             if (pdfPath) {
@@ -31,7 +30,7 @@ export async function POST() {
 
         return NextResponse.json({
             success: true,
-            message: `Rechnungen verarbeitet für ${hotels.length} Hotels`,
+            message: `Rechnungen verarbeitet für ${hotels.length} Hotels (Zeitraum: ${month}/${year})`,
             details: results
         });
 
