@@ -7,6 +7,10 @@ export default function Dashboard() {
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
+    
+    // NEU: State für die Datumsauswahl (Standard: Heute)
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
     const fetchStats = async () => {
         try {
@@ -26,11 +30,14 @@ export default function Dashboard() {
         setLoading(false);
     };
 
-    // Die Funktion für den neuen Knopf
     const triggerInvoices = async () => {
         setGenerating(true);
         try {
-            const response = await axios.post('/api/invoices/generate');
+            // NEU: Wir senden Monat und Jahr mit
+            const response = await axios.post('/api/invoices/generate', {
+                month: selectedMonth,
+                year: selectedYear
+            });
             alert(response.data.message || "Rechnungen erstellt!");
             await fetchStats();
         } catch (error: any) {
@@ -50,24 +57,45 @@ export default function Dashboard() {
     return (
         <div className="min-h-screen bg-gray-50 p-8">
             <div className="max-w-6xl mx-auto">
-                <div className="flex justify-between items-center mb-8">
+                <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                     <h1 className="text-3xl font-bold text-gray-800">Click A Tree Dashboard</h1>
                     
-                    <div className="space-x-4">
+                    <div className="flex items-center gap-2">
+                        {/* NEU: Auswahl Dropdowns */}
+                        <div className="flex gap-2 mr-2">
+                            <select 
+                                value={selectedMonth} 
+                                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                                className="border rounded px-2 py-2 text-gray-700"
+                            >
+                                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                                    <option key={m} value={m}>{new Date(0, m - 1).toLocaleString('de', { month: 'long' })}</option>
+                                ))}
+                            </select>
+                            <select 
+                                value={selectedYear} 
+                                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                className="border rounded px-2 py-2 text-gray-700"
+                            >
+                                <option value="2024">2024</option>
+                                <option value="2025">2025</option>
+                                <option value="2026">2026</option>
+                            </select>
+                        </div>
+
                         <button
                             onClick={triggerSync}
-                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm"
                         >
-                            Sync Mews Data
+                            Sync Data
                         </button>
 
-                        {/* Der neue grüne Knopf */}
                         <button
                             onClick={triggerInvoices}
                             disabled={generating}
-                            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition disabled:opacity-50"
+                            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition disabled:opacity-50 text-sm whitespace-nowrap"
                         >
-                            {generating ? 'Erstelle PDF...' : 'Generate Invoices'}
+                            {generating ? 'Erstelle...' : 'Rechnung erstellen'}
                         </button>
                     </div>
                 </div>
@@ -131,7 +159,6 @@ export default function Dashboard() {
                                             <td className="py-2">{inv.hotel.name}</td>
                                             <td className="py-2">{inv.totalAmount.toFixed(2)} EUR</td>
                                             <td className="py-2">
-                                                {/* Der Download Link */}
                                                 <a href={inv.pdfPath} target="_blank" className="text-blue-600 hover:underline font-medium">
                                                     Download PDF
                                                 </a>

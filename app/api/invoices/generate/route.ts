@@ -2,21 +2,26 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateInvoice } from '@/lib/invoice';
 
-export async function POST() {
+export async function POST(request: Request) {
     try {
-        console.log("📝 Starte Rechnungsstellung...");
+        // Daten aus dem Frontend lesen
+        const body = await request.json().catch(() => ({}));
+        
+        let month = body.month ? parseInt(body.month) : null;
+        let year = body.year ? parseInt(body.year) : null;
+
+        // Fallback: Wenn nichts ausgewählt wurde, nimm den Vormonat
+        if (!month || !year) {
+            const now = new Date();
+            now.setMonth(now.getMonth() - 1);
+            month = now.getMonth() + 1;
+            year = now.getFullYear();
+        }
+
+        console.log(`📝 Starte Rechnungsstellung für Zeitraum: ${month}/${year}...`);
 
         const hotels = await prisma.hotel.findMany();
         const results = [];
-
-        // ÄNDERUNG: Wir nehmen den VORMONAT, nicht den aktuellen
-        const now = new Date();
-        now.setMonth(now.getMonth() - 1); // Gehe einen Monat zurück (handhabt auch Jahreswechsel automatisch)
-        
-        const month = now.getMonth() + 1; // JS Monate sind 0-basiert, daher +1
-        const year = now.getFullYear();
-
-        console.log(`Generiere Rechnungen für Zeitraum: ${month}/${year}`);
 
         for (const hotel of hotels) {
             const pdfPath = await generateInvoice(hotel.id, year, month);
