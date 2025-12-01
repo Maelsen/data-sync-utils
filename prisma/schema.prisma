@@ -17,6 +17,9 @@ model Hotel {
   name      String
   orders    TreeOrder[]
   invoices  Invoice[]
+  config    HotelConfig?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model TreeOrder {
@@ -29,16 +32,82 @@ model TreeOrder {
   currency    String
   createdAt   DateTime @default(now())
   bookedAt    DateTime // When it was booked in Mews
+  
+  @@index([hotelId, bookedAt])
 }
 
 model Invoice {
-  id        String   @id @default(uuid())
-  hotelId   String
-  hotel     Hotel    @relation(fields: [hotelId], references: [id])
-  month     Int
-  year      Int
-  totalTrees Int
+  id          String   @id @default(uuid())
+  hotelId     String
+  hotel       Hotel    @relation(fields: [hotelId], references: [id])
+  month       Int
+  year        Int
+  totalTrees  Int
   totalAmount Float
-  pdfPath   String
-  createdAt DateTime @default(now())
+  pdfPath     String
+  createdAt   DateTime @default(now())
+  
+  @@unique([hotelId, month, year])
+  @@index([hotelId, year, month])
+}
+
+// NEW: Webhook events for audit trail and Mews certification
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  eventType   String   // ServiceOrderCreated, ServiceOrderUpdated, etc.
+  eventId     String?  @unique // Mews event ID for deduplication
+  payload     Json     // Full Mews event data
+  processed   Boolean  @default(false)
+  processedAt DateTime?
+  error       String?
+  retryCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  
+  @@index([processed, createdAt])
+  @@index([eventType, createdAt])
+}
+
+// NEW: Hotel configuration for multi-tenant support
+model HotelConfig {
+  id              String   @id @default(uuid())
+  hotelId         String   @unique
+  hotel           Hotel    @relation(fields: [hotelId], references: [id])
+  mewsAccessToken String   // Encrypted access token
+  webhookEnabled  Boolean  @default(true)
+  syncFrequency   String   @default("daily") // hourly, daily, webhook-only
+  active          Boolean  @default(true)
+  lastSyncAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// NEW: API call logging for Mews certification review
+model ApiLog {
+  id          String   @id @default(uuid())
+  timestamp   DateTime @default(now())
+  endpoint    String   // e.g., /api/connector/v1/orders/getAll
+  method      String   // GET, POST
+  statusCode  Int      // 200, 500, etc.
+  duration    Int      // milliseconds
+  hotelId     String?
+  success     Boolean
+  error       String?
+  metadata    Json?    // request/response details
+  
+  @@index([timestamp])
+  @@index([hotelId, timestamp])
+  @@index([success, timestamp])
+}
+
+// NEW: System health tracking
+model SystemHealth {
+  id              String   @id @default(uuid())
+  timestamp       DateTime @default(now())
+  component       String   // database, mews-api, blob-storage
+  status          String   // healthy, degraded, down
+  responseTime    Int?     // milliseconds
+  errorMessage    String?
+  metadata        Json?
+  
+  @@index([component, timestamp])
 }
