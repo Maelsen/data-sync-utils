@@ -22,13 +22,29 @@ export async function generateInvoice(hotelId: string, year: number, month: numb
     const totalAmount = orders.reduce((sum: number, order: any) => sum + order.amount, 0);
 
     if (totalTrees === 0) {
-        return null; 
+        return { status: 'skipped', reason: 'No trees found' };
     }
 
     const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
     if (!hotel) throw new Error('Hotel not found');
 
-    // 2. PDF im Buffer (Arbeitsspeicher) generieren
+    // 2. Prüfen ob Rechnung schon existiert -> Löschen um Duplikate zu vermeiden
+    const existingInvoice = await prisma.invoice.findFirst({
+        where: {
+            hotelId,
+            month,
+            year
+        }
+    });
+
+    if (existingInvoice) {
+        console.log(`🗑️ Lösche alte Rechnung für ${hotel.name} (${month}/${year})`);
+        await prisma.invoice.delete({
+            where: { id: existingInvoice.id }
+        });
+    }
+
+    // 3. PDF im Buffer (Arbeitsspeicher) generieren
     const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
         const doc = new PDFDocument();
         const buffers: Buffer[] = [];
@@ -55,15 +71,15 @@ export async function generateInvoice(hotelId: string, year: number, month: numb
         doc.end();
     });
 
-    // 3. PDF zu Vercel Blob hochladen
+    // 4. PDF zu Vercel Blob hochladen
     const fileName = `invoices/${hotel.mewsId}_${year}_${month}.pdf`;
-    
+
     const blob = await put(fileName, pdfBuffer, {
         access: 'public',
-        // addRandomSuffix: false // Optional: falls du Dateien überschreiben willst
+        addRandomSuffix: false // Überschreiben erzwingen
     });
 
-    // 4. Datenbank Eintrag mit der Blob-URL erstellen
+    // 5. Datenbank Eintrag erstellen
     await prisma.invoice.create({
         data: {
             hotelId,
@@ -71,9 +87,9 @@ export async function generateInvoice(hotelId: string, year: number, month: numb
             year,
             totalTrees,
             totalAmount,
-            pdfPath: blob.url, // Hier speichern wir jetzt die URL zur Cloud-Datei
+            pdfPath: blob.url,
         },
     });
 
-    return blob.url;
+    return { status: 'created', path: blob.url };
 }

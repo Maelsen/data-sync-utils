@@ -7,7 +7,7 @@ export default function Dashboard() {
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
-    
+
     // NEU: State für die Datumsauswahl (Standard: Heute)
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -58,14 +58,14 @@ export default function Dashboard() {
         <div className="min-h-screen bg-gray-50 p-8">
             <div className="max-w-6xl mx-auto">
                 <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                    {/* ÄNDERUNG: Wir fügen "v2" hinzu. Wenn du das siehst, ist das Update da! */}
-                    <h1 className="text-3xl font-bold text-gray-800">Click A Tree Dashboard v2</h1>
-                    
+                    {/* ÄNDERUNG: Version Bump für Deployment Check */}
+                    <h1 className="text-3xl font-bold text-gray-800">Click A Tree Dashboard v2.1</h1>
+
                     <div className="flex items-center gap-2">
                         {/* NEU: Auswahl Dropdowns */}
                         <div className="flex gap-2 mr-2">
-                            <select 
-                                value={selectedMonth} 
+                            <select
+                                value={selectedMonth}
                                 onChange={(e) => setSelectedMonth(Number(e.target.value))}
                                 className="border rounded px-2 py-2 text-gray-700"
                             >
@@ -73,8 +73,8 @@ export default function Dashboard() {
                                     <option key={m} value={m}>{new Date(0, m - 1).toLocaleString('de', { month: 'long' })}</option>
                                 ))}
                             </select>
-                            <select 
-                                value={selectedYear} 
+                            <select
+                                value={selectedYear}
                                 onChange={(e) => setSelectedYear(Number(e.target.value))}
                                 className="border rounded px-2 py-2 text-gray-700"
                             >

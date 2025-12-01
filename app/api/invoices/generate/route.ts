@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     try {
         // Daten aus dem Frontend lesen
         const body = await request.json().catch(() => ({}));
-        
+
         let month = body.month ? parseInt(body.month) : null;
         let year = body.year ? parseInt(body.year) : null;
 
@@ -28,18 +28,21 @@ export async function POST(request: Request) {
         const results = [];
 
         for (const hotel of hotels) {
-            const pdfPath = await generateInvoice(hotel.id, year, month);
+            const result = await generateInvoice(hotel.id, year, month);
 
-            if (pdfPath) {
-                results.push({ hotel: hotel.name, status: 'created', path: pdfPath });
+            if (result.status === 'created') {
+                results.push({ hotel: hotel.name, status: 'created', path: result.path });
             } else {
-                results.push({ hotel: hotel.name, status: 'skipped', reason: 'No trees found' });
+                results.push({ hotel: hotel.name, status: 'skipped', reason: result.reason });
             }
         }
 
+        const createdCount = results.filter(r => r.status === 'created').length;
+        const skippedCount = results.filter(r => r.status === 'skipped').length;
+
         return NextResponse.json({
             success: true,
-            message: `Rechnungen verarbeitet für ${hotels.length} Hotels (Zeitraum: ${month}/${year})`,
+            message: `Rechnungen verarbeitet: ${createdCount} erstellt, ${skippedCount} übersprungen (Zeitraum: ${month}/${year})`,
             details: results
         });
 
