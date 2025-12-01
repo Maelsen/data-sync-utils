@@ -58,7 +58,8 @@ export default function Dashboard() {
         <div className="min-h-screen bg-gray-50 p-8">
             <div className="max-w-6xl mx-auto">
                 <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                    <h1 className="text-3xl font-bold text-gray-800">Click A Tree Dashboard</h1>
+                    {/* ÄNDERUNG: Wir fügen "v2" hinzu. Wenn du das siehst, ist das Update da! */}
+                    <h1 className="text-3xl font-bold text-gray-800">Click A Tree Dashboard v2</h1>
                     
                     <div className="flex items-center gap-2">
                         {/* NEU: Auswahl Dropdowns */}
