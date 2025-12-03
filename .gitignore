@@ -41,3 +41,5 @@ prisma/dev.db-journal
 
 # Invoices (generated files)
 public/invoices/*.pdf
+
+.vercel

@@ -223,7 +223,7 @@ class WebhookHandler {
 
         for (const event of pendingEvents) {
             try {
-                await this.processEvent(event.payload as MewsWebhookEvent);
+                await this.processEvent(event.payload as unknown as MewsWebhookEvent);
             } catch (error) {
                 webhookLogger.error('retry_failed', 'Failed to process pending event', error as Error, {
                     eventId: event.eventId,
