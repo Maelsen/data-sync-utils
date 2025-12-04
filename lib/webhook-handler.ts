@@ -103,24 +103,23 @@ class WebhookHandler {
     }
 
     private async handleServiceOrderCreated(data: ServiceOrderData) {
-        webhookLogger.info('order_created', 'New tree order detected', {
+        webhookLogger.info('order_created', 'New service order detected', {
             orderId: data.Id,
+            serviceId: data.ServiceId,
             quantity: data.Count,
         });
 
-        // Check if this is a tree order (you'll need to configure the ServiceId)
-        const treeServiceId = process.env.TREE_SERVICE_ID;
-        if (data.ServiceId !== treeServiceId) {
-            webhookLogger.debug('skip_order', 'Not a tree order, skipping', {
-                serviceId: data.ServiceId,
-            });
-            return;
-        }
+        // TEMPORARY: Accept ALL service orders for testing
+        // TODO: Later filter by TREE_SERVICE_ID
+        webhookLogger.info('accepting_order', 'Processing order (all services accepted for testing)', {
+            serviceId: data.ServiceId,
+        });
 
         // Find or create hotel
         // Note: We need to get hotel info from the reservation or configuration
         // For now, we'll use a placeholder - this needs to be enhanced
         const hotel = await this.getOrCreateHotel(data);
+
 
         // Create tree order
         await prisma.treeOrder.upsert({
