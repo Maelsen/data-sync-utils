@@ -4,6 +4,8 @@
 
 Enable your hotel guests to plant trees with every booking through seamless Mews PMS integration.
 
+<!-- URL Stability Test - Deployment 2025-12-04 -->
+
 ---
 
 ## Features
