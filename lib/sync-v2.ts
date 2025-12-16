@@ -77,12 +77,12 @@ export async function syncTreeOrdersV2() {
         `[sync] collected ${allItems.length} Items, ${allOrderItems.length} OrderItems, ${allAssignments.length} ProductAssignments, ${products.length} products`,
     );
 
-    const targetServiceId = process.env.TREE_SERVICE_ID;
+    const targetProductId = process.env.TREE_PRODUCT_ID || process.env.TREE_SERVICE_ID; // Support both names for backwards compatibility
     let treeProducts: any[] = [];
 
-    if (targetServiceId) {
-        console.log(`[sync] filtering by Service ID: ${targetServiceId}`);
-        treeProducts = products.filter((p: any) => p.ServiceId === targetServiceId);
+    if (targetProductId) {
+        console.log(`[sync] filtering by Product ID: ${targetProductId}`);
+        treeProducts = products.filter((p: any) => p.Id === targetProductId);
     } else {
         console.log(`[sync] filtering by name contains: '${TREE_NAME}'`);
         treeProducts = products.filter((p: any) => (p.Name || '').toLowerCase().includes(TREE_NAME));
