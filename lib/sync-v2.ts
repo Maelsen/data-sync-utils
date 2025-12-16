@@ -77,15 +77,23 @@ export async function syncTreeOrdersV2() {
         `[sync] collected ${allItems.length} Items, ${allOrderItems.length} OrderItems, ${allAssignments.length} ProductAssignments, ${products.length} products`,
     );
 
+    // DEBUG: Log all products to see what we're getting from Mews
+    console.log('[sync] DEBUG: All products from Mews:');
+    products.forEach((p: any) => {
+        console.log(`  - ID: ${p.Id}, Name: "${p.Name}"`);
+    });
+
     const targetProductId = process.env.TREE_PRODUCT_ID || process.env.TREE_SERVICE_ID; // Support both names for backwards compatibility
     let treeProducts: any[] = [];
 
     if (targetProductId) {
         console.log(`[sync] filtering by Product ID: ${targetProductId}`);
         treeProducts = products.filter((p: any) => p.Id === targetProductId);
+        console.log(`[sync] DEBUG: Found ${treeProducts.length} products matching ID ${targetProductId}`);
     } else {
         console.log(`[sync] filtering by name contains: '${TREE_NAME}'`);
         treeProducts = products.filter((p: any) => (p.Name || '').toLowerCase().includes(TREE_NAME));
+        console.log(`[sync] DEBUG: Found ${treeProducts.length} products with name containing '${TREE_NAME}'`);
     }
 
     const treeProductIds = treeProducts.map((p: any) => p.Id);
@@ -103,6 +111,7 @@ export async function syncTreeOrdersV2() {
             currency: item.Amount?.Currency || item.AmountBeforeTaxes?.Currency || 'EUR',
             bookedAt: toDate(item.ConsumptionUtc || item.CreatedUtc),
             state: item.State,
+            type: 'Item',
         })),
         ...treeOrderItems.map((item: any) => ({
             mewsId: item.Id,
@@ -111,6 +120,7 @@ export async function syncTreeOrdersV2() {
             currency: item.Amount?.Currency || item.TotalPrice?.Currency || 'EUR',
             bookedAt: toDate(item.CreatedUtc),
             state: item.State,
+            type: 'OrderItem',
         })),
         ...treeAssignments.map((item: any) => ({
             mewsId: item.Id,
@@ -119,10 +129,17 @@ export async function syncTreeOrdersV2() {
             currency: item.Amount?.Currency || item.Price?.Currency || 'EUR',
             bookedAt: toDate(item.StartUtc || item.CreatedUtc),
             state: item.State,
+            type: 'ProductAssignment',
         })),
     ];
 
     console.log(`[sync] tree lines total: ${treeLines.length}`);
+
+    // DEBUG: Log each tree line with its state
+    console.log('[sync] DEBUG: Tree lines breakdown:');
+    treeLines.forEach((line: any, index: number) => {
+        console.log(`  [${index}] ${line.type} - ID: ${line.mewsId.slice(0, 8)}... - State: ${line.state} - Qty: ${line.quantity} - Amount: ${line.amount}`);
+    });
 
     if (treeLines.length === 0) {
         console.log('[sync] no tree sales found in window');
