@@ -4,102 +4,111 @@
 import { prisma } from './prisma';
 import { webhookLogger } from './logger';
 
-export interface MewsWebhookEvent {
-    Id: string;
-    Type: string; // ServiceOrderCreated, ServiceOrderUpdated, etc.
-    CreatedUtc: string;
-    Data: any;
+export interface MewsWebhookEnvelope {
+    EnterpriseId: string;
+    IntegrationId: string;
+    Events: Array<{
+        Discriminator: string; // e.g. ServiceOrderUpdated
+        Value: {
+            Id: string;
+        };
+    }>;
+    Entities: {
+        ServiceOrders?: ServiceOrderData[];
+        [key: string]: any;
+    };
 }
 
 export interface ServiceOrderData {
     Id: string;
     ServiceId: string;
-    ReservationId?: string;
-    AccountingCategoryId?: string;
-    Amount: {
-        Currency: string;
-        NetValue: number;
+    // ... other fields matching previous interface, loosely typed to avoid breaks
+    Count?: number;
+    Amount?: {
         GrossValue: number;
-        TaxValues: Array<{
-            Code: string;
-            Value: number;
-        }>;
-    };
-    Count: number; // Quantity
-    UnitCost: {
         Currency: string;
-        NetValue: number;
-        GrossValue: number;
+        [key: string]: any;
     };
-    State: string; // Confirmed, Canceled, etc.
+    State: string;
+    [key: string]: any;
 }
 
 class WebhookHandler {
-    async processEvent(event: MewsWebhookEvent): Promise<void> {
-        webhookLogger.info('process_event', `Processing ${event.Type}`, {
-            eventId: event.Id,
-            eventType: event.Type,
-        });
+    async processEnvelope(envelope: MewsWebhookEnvelope): Promise<void> {
+        webhookLogger.info('process_envelope', `Received envelope with ${envelope.Events.length} events`);
 
-        try {
-            // Store event in database for audit trail
-            const storedEvent = await prisma.webhookEvent.upsert({
-                where: { eventId: event.Id },
-                create: {
-                    eventId: event.Id,
-                    eventType: event.Type,
-                    payload: event as any,
-                    processed: false,
-                },
-                update: {
-                    retryCount: { increment: 1 },
-                },
-            });
+        for (const event of envelope.Events) {
+            const eventId = event.Value.Id;
+            const eventType = event.Discriminator;
 
-            // Route to appropriate handler
-            switch (event.Type) {
-                case 'ServiceOrderCreated':
-                    await this.handleServiceOrderCreated(event.Data);
-                    break;
-                case 'ServiceOrderUpdated':
-                    await this.handleServiceOrderUpdated(event.Data);
-                    break;
-                case 'ServiceOrderCanceled':
-                    await this.handleServiceOrderCanceled(event.Data);
-                    break;
-                default:
-                    webhookLogger.warn('unknown_event', `Unknown event type: ${event.Type}`, {
-                        eventId: event.Id,
-                    });
+            try {
+                // Store event in database for audit trail
+                // Note: We're storing individual events flattened
+                const storedEvent = await prisma.webhookEvent.upsert({
+                    where: { eventId: eventId },
+                    create: {
+                        eventId: eventId,
+                        eventType: eventType,
+                        payload: envelope as any, // Store full envelope for context
+                        processed: false,
+                    },
+                    update: {
+                        retryCount: { increment: 1 },
+                    },
+                });
+
+                // Route to appropriate handler
+                switch (eventType) {
+                    case 'ServiceOrderCreated':
+                    case 'ServiceOrderUpdated':
+                    case 'ServiceOrderCanceled':
+                        // Find entity in envelope
+                        const entity = envelope.Entities?.ServiceOrders?.find(o => o.Id === eventId);
+                        if (entity) {
+                            if (eventType === 'ServiceOrderCreated') await this.handleServiceOrderCreated(entity);
+                            if (eventType === 'ServiceOrderUpdated') await this.handleServiceOrderUpdated(entity);
+                            if (eventType === 'ServiceOrderCanceled') await this.handleServiceOrderCanceled(entity);
+                        } else {
+                            webhookLogger.warn('entity_missing', `Entity for event ${eventId} not found in envelope`);
+                        }
+                        break;
+                    default:
+                        webhookLogger.warn('unknown_event', `Unknown event type: ${eventType}`, {
+                            eventId: eventId,
+                        });
+                }
+
+                // Mark as processed
+                await prisma.webhookEvent.update({
+                    where: { id: storedEvent.id },
+                    data: {
+                        processed: true,
+                        processedAt: new Date(),
+                    },
+                });
+
+            } catch (error) {
+                webhookLogger.error('event_failed', `Failed to process ${eventType}`, error as Error, {
+                    eventId: eventId,
+                });
+                // Continue to next event even if one fails
             }
-
-            // Mark as processed
-            await prisma.webhookEvent.update({
-                where: { id: storedEvent.id },
-                data: {
-                    processed: true,
-                    processedAt: new Date(),
-                },
-            });
-
-            webhookLogger.info('event_processed', `Successfully processed ${event.Type}`, {
-                eventId: event.Id,
-            });
-        } catch (error) {
-            webhookLogger.error('event_failed', `Failed to process ${event.Type}`, error as Error, {
-                eventId: event.Id,
-            });
-
-            // Store error in database
-            await prisma.webhookEvent.updateMany({
-                where: { eventId: event.Id },
-                data: {
-                    error: (error as Error).message,
-                },
-            });
-
-            throw error;
         }
+    }
+
+    // Legacy method / Main entry point that detects format
+    async processEvent(event: any): Promise<void> {
+        // Redirect to envelope handler if it looks like an envelope
+        if (event.events || event.Events) {
+            // Handle case sensitivity just in case, though Mews is usually PascalCase
+            const envelope = event as MewsWebhookEnvelope;
+            return this.processEnvelope(envelope);
+        }
+
+        // Fallback for unexpected formats - log and ignore or try to process if it matches old single event format
+        webhookLogger.warn('unknown_format', 'Received webhook with unknown format (not an envelope)', {
+            keys: Object.keys(event),
+        });
     }
 
     private async handleServiceOrderCreated(data: ServiceOrderData) {
@@ -116,10 +125,11 @@ class WebhookHandler {
         });
 
         // Find or create hotel
-        // Note: We need to get hotel info from the reservation or configuration
-        // For now, we'll use a placeholder - this needs to be enhanced
         const hotel = await this.getOrCreateHotel(data);
 
+        const quantity = data.Count || 1;
+        const amount = data.Amount?.GrossValue || 0;
+        const currency = data.Amount?.Currency || 'EUR';
 
         // Create tree order
         await prisma.treeOrder.upsert({
@@ -127,21 +137,21 @@ class WebhookHandler {
             create: {
                 mewsId: data.Id,
                 hotelId: hotel.id,
-                quantity: data.Count,
-                amount: data.Amount.GrossValue,
-                currency: data.Amount.Currency,
+                quantity: quantity,
+                amount: amount,
+                currency: currency,
                 bookedAt: new Date(),
             },
             update: {
-                quantity: data.Count,
-                amount: data.Amount.GrossValue,
+                quantity: quantity,
+                amount: amount,
             },
         });
 
         webhookLogger.info('order_saved', 'Tree order saved to database', {
             orderId: data.Id,
             hotelId: hotel.id,
-            quantity: data.Count,
+            quantity: quantity,
         });
     }
 
@@ -164,17 +174,20 @@ class WebhookHandler {
             return;
         }
 
+        const quantity = data.Count || 1;
+        const amount = data.Amount?.GrossValue || 0;
+
         await prisma.treeOrder.update({
             where: { mewsId: data.Id },
             data: {
-                quantity: data.Count,
-                amount: data.Amount.GrossValue,
+                quantity: quantity,
+                amount: amount,
             },
         });
 
         webhookLogger.info('order_updated_success', 'Tree order updated in database', {
             orderId: data.Id,
-            quantity: data.Count,
+            quantity: quantity,
         });
     }
 
@@ -222,7 +235,8 @@ class WebhookHandler {
 
         for (const event of pendingEvents) {
             try {
-                await this.processEvent(event.payload as unknown as MewsWebhookEvent);
+                // Try to process as envelope
+                await this.processEvent(event.payload);
             } catch (error) {
                 webhookLogger.error('retry_failed', 'Failed to process pending event', error as Error, {
                     eventId: event.eventId,

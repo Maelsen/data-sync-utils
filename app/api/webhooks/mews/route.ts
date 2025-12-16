@@ -2,7 +2,7 @@
 // POST /api/webhooks/mews?secret=YOUR_SECRET
 
 import { NextResponse } from 'next/server';
-import { webhookHandler, MewsWebhookEvent } from '@/lib/webhook-handler';
+import { webhookHandler, MewsWebhookEnvelope } from '@/lib/webhook-handler';
 import { webhookLogger } from '@/lib/logger';
 import { syncTreeOrdersV2 } from '@/lib/sync-v2';
 
@@ -58,12 +58,17 @@ export async function POST(request: Request) {
         // Get raw body
         const rawBody = await request.text();
 
-        // Parse event
-        const event: MewsWebhookEvent = JSON.parse(rawBody);
+        // Parse event as envelope
+        const envelope: MewsWebhookEnvelope = JSON.parse(rawBody);
 
-        webhookLogger.info('webhook_received', `Received ${event.Type} event`, {
-            eventId: event.Id,
-            eventType: event.Type,
+        // Basic validation
+        if (!envelope.Events && !envelope.EnterpriseId) {
+            webhookLogger.warn('invalid_payload', 'Received payload does not look like a Mews envelope');
+        }
+
+        webhookLogger.info('webhook_received', `Received webhook envelope`, {
+            eventsCount: envelope.Events?.length || 0,
+            enterpriseId: envelope.EnterpriseId
         });
 
         // Process event asynchronously (don't block response)
@@ -72,13 +77,13 @@ export async function POST(request: Request) {
         // Trigger auto-sync
         syncTreeOrdersV2().catch((error: any) => {
             webhookLogger.error('auto_sync_failed', 'Automatic sync triggers by webhook failed', error, {
-                eventId: event.Id,
+                // eventId: event.Id // No single event ID anymore
             });
         });
 
-        webhookHandler.processEvent(event).catch((error) => {
-            webhookLogger.error('async_process_failed', 'Failed to process event async', error, {
-                eventId: event.Id,
+        webhookHandler.processEnvelope(envelope).catch((error) => {
+            webhookLogger.error('async_process_failed', 'Failed to process envelope async', error, {
+                enterpriseId: envelope.EnterpriseId
             });
         });
 
@@ -88,7 +93,6 @@ export async function POST(request: Request) {
         return NextResponse.json(
             {
                 success: true,
-                eventId: event.Id,
                 message: 'Event received and queued for processing',
             },
             { status: 200, headers: { 'X-Processing-Time': `${duration}ms` } }
