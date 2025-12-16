@@ -77,9 +77,19 @@ export async function syncTreeOrdersV2() {
         `[sync] collected ${allItems.length} Items, ${allOrderItems.length} OrderItems, ${allAssignments.length} ProductAssignments, ${products.length} products`,
     );
 
-    const treeProducts = products.filter((p: any) => (p.Name || '').toLowerCase().includes(TREE_NAME));
+    const targetServiceId = process.env.TREE_SERVICE_ID;
+    let treeProducts: any[] = [];
+
+    if (targetServiceId) {
+        console.log(`[sync] filtering by Service ID: ${targetServiceId}`);
+        treeProducts = products.filter((p: any) => p.ServiceId === targetServiceId);
+    } else {
+        console.log(`[sync] filtering by name contains: '${TREE_NAME}'`);
+        treeProducts = products.filter((p: any) => (p.Name || '').toLowerCase().includes(TREE_NAME));
+    }
+
     const treeProductIds = treeProducts.map((p: any) => p.Id);
-    console.log(`[sync] tree products: ${treeProducts.map((p: any) => p.Name).join(', ') || 'none'}`);
+    console.log(`[sync] found ${treeProducts.length} target products: ${treeProducts.map((p: any) => p.Name).join(', ') || 'none'}`);
 
     const treeItems = allItems.filter((item: any) => treeProductIds.includes(item.ProductId));
     const treeOrderItems = allOrderItems.filter((item: any) => treeProductIds.includes(item.ProductId));
