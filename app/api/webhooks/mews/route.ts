@@ -85,6 +85,7 @@ export async function POST(request: Request) {
         // Mews expects a quick 200 OK response
 
         // Trigger auto-sync
+        webhookLogger.info('triggering_sync', 'Triggering automatic sync after webhook');
         syncTreeOrdersV2().catch((error: any) => {
             webhookLogger.error('auto_sync_failed', 'Automatic sync triggers by webhook failed', error, {
                 // eventId: event.Id // No single event ID anymore
