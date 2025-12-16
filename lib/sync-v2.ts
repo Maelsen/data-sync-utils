@@ -157,22 +157,39 @@ export async function syncTreeOrdersV2() {
         create: { mewsId: hotelId, name: hotelName },
     });
 
+    // Calculate the start of our sync window (30 days ago)
+    const syncWindowStart = subDays(new Date(), 30);
+
     // Get all existing tree orders for this hotel from the database
     const existingOrders = await prisma.treeOrder.findMany({
         where: { hotelId: hotel.id },
-        select: { mewsId: true, id: true },
+        select: { mewsId: true, id: true, bookedAt: true },
     });
 
     // Create a Set of mewsIds from the current Mews API response
     const currentMewsIds = new Set(treeLines.map((line: any) => line.mewsId));
 
     // Find orders that exist in DB but are NOT in the current Mews response
-    // These are the canceled/deleted orders
-    const ordersToDelete = existingOrders.filter((order) => !currentMewsIds.has(order.mewsId));
+    // IMPORTANT: Only consider orders within our sync window!
+    // Orders older than the window should be kept (they're just too old to appear in the API response)
+    const ordersToDelete = existingOrders.filter((order) =>
+        !currentMewsIds.has(order.mewsId) &&
+        order.bookedAt >= syncWindowStart  // Only delete if it's within the sync window
+    );
 
+    console.log(`[sync] DEBUG: Sync window start: ${syncWindowStart.toISOString()}`);
     console.log(`[sync] DEBUG: Existing orders in DB: ${existingOrders.length}`);
     console.log(`[sync] DEBUG: Current orders from Mews: ${currentMewsIds.size}`);
-    console.log(`[sync] DEBUG: Orders to delete (no longer in Mews): ${ordersToDelete.length}`);
+    console.log(`[sync] DEBUG: Orders to delete (no longer in Mews, within window): ${ordersToDelete.length}`);
+
+    // DEBUG: Show which orders are being kept because they're outside the window
+    const oldOrdersKept = existingOrders.filter((order) =>
+        !currentMewsIds.has(order.mewsId) &&
+        order.bookedAt < syncWindowStart
+    );
+    if (oldOrdersKept.length > 0) {
+        console.log(`[sync] DEBUG: Keeping ${oldOrdersKept.length} old orders (outside sync window, booked before ${syncWindowStart.toISOString().split('T')[0]})`);
+    }
 
     // Delete orders that are no longer in Mews (they were canceled)
     if (ordersToDelete.length > 0) {
