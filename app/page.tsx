@@ -56,21 +56,26 @@ export default function Dashboard() {
         </div>
     );
 
+    // Berechne Revenue für die Anzeige (Annahme: 5€ pro Baum, falls API das nicht liefert)
+    const totalRevenue = (stats?.totalTrees || 0) * 5;
+
     return (
-        <div className="min-h-screen bg-[#f4f9f4] text-slate-800 pb-20">
+        <div className="min-h-screen bg-[#f4f9f4] text-slate-800 pb-20 font-sans">
 
             {/* Navigation / Top Bar */}
             <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        {/* Logo Platzhalter */}
-                        <div className="w-10 h-10 bg-[#669933] rounded-lg flex items-center justify-center text-2xl shadow-sm text-white">
-                            🌳
-                        </div>
-                        <div>
-                            <h1 className="font-bold text-xl text-gray-900 leading-none">Click A Tree</h1>
-                            <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Integration Admin</span>
-                        </div>
+                    <div className="flex items-center gap-4">
+                        {/* LOGO - Lädt /public/logo.png */}
+                        <img
+                            src="/logo.png"
+                            alt="Click A Tree"
+                            className="h-12 w-auto object-contain"
+                        />
+
+                        <div className="h-8 w-px bg-gray-200"></div>
+
+                        <span className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">Integration Admin</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="text-right hidden sm:block mr-2">
@@ -88,8 +93,8 @@ export default function Dashboard() {
                 {/* Header Actions */}
                 <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-8">
                     <div>
-                        <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
-                        <p className="text-gray-500 mt-1">Overview of your tree planting performance.</p>
+                        <h2 className="text-3xl font-bold text-gray-900">Integration Dashboard</h2>
+                        <p className="text-gray-500 mt-1">Monitor real-time tree planting stats and manage your monthly invoicing seamlessly.</p>
                     </div>
 
                     <div className="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
@@ -118,7 +123,7 @@ export default function Dashboard() {
                         <button
                             onClick={triggerSync}
                             className="p-2 text-gray-400 hover:text-[#669933] transition-colors"
-                            title="Sync"
+                            title="Sync Data"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                         </button>
@@ -132,20 +137,62 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* Big Stat Card */}
-                <div className="bg-gradient-to-br from-[#669933] to-[#88B36A] rounded-2xl p-8 text-white shadow-lg mb-10 relative overflow-hidden">
-                    <div className="relative z-10">
-                        <div className="text-green-100 text-sm font-bold uppercase tracking-wider mb-2">Total Impact</div>
-                        <div className="flex items-baseline gap-3">
-                            <span className="text-7xl font-extrabold tracking-tight">{stats?.totalTrees || 0}</span>
-                            <span className="text-2xl font-medium text-green-50">Trees</span>
+                {/* Big Stat Card - UPDATED LAYOUT */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                    <div className="md:col-span-2 bg-gradient-to-br from-[#669933] to-[#88B36A] rounded-2xl p-8 text-white shadow-lg relative overflow-hidden flex flex-col justify-center min-h-[220px]">
+
+                        <div className="relative z-10">
+                            <div className="text-green-100 text-sm font-bold uppercase tracking-wider mb-6">Total Impact & Revenue</div>
+
+                            <div className="flex items-center gap-12">
+                                {/* Trees Section */}
+                                <div>
+                                    <div className="text-6xl md:text-7xl font-extrabold tracking-tight leading-none">
+                                        {stats?.totalTrees || 0}
+                                    </div>
+                                    <div className="text-lg font-medium text-green-50 mt-2">Trees Planted</div>
+                                </div>
+
+                                {/* Divider */}
+                                <div className="hidden md:block w-px h-20 bg-green-400/50"></div>
+
+                                {/* Revenue Section - NEW */}
+                                <div>
+                                    <div className="text-6xl md:text-7xl font-extrabold tracking-tight leading-none">
+                                        € {totalRevenue.toLocaleString()}
+                                    </div>
+                                    <div className="text-lg font-medium text-green-50 mt-2">Total Revenue</div>
+                                </div>
+                            </div>
                         </div>
-                        <p className="text-green-50 mt-4 max-w-2xl text-lg">
-                            Your guests have helped capture approximately <span className="font-bold text-white">{((stats?.totalTrees || 0) * 12).toLocaleString()} kg</span> of CO₂.
-                        </p>
+
+                        {/* Decorative Circle */}
+                        <div className="absolute -top-32 -right-32 w-80 h-80 bg-white opacity-10 rounded-full blur-3xl pointer-events-none"></div>
                     </div>
-                    {/* Decorative Circle */}
-                    <div className="absolute -top-24 -right-24 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl"></div>
+
+                    {/* System Status Card */}
+                    <div className="bg-white rounded-2xl p-8 shadow-md border border-gray-100 flex flex-col justify-center">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider">System Health</h3>
+                            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded font-bold">Operational</span>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between p-3 bg-[#f8fafc] rounded-xl border border-gray-100">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-sm">🔌</div>
+                                    <span className="text-gray-700 font-bold text-sm">Mews API</span>
+                                </div>
+                                <span className="text-xs font-bold text-green-600">Online</span>
+                            </div>
+                            <div className="flex items-center justify-between p-3 bg-[#f8fafc] rounded-xl border border-gray-100">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-sm">⚓</div>
+                                    <span className="text-gray-700 font-bold text-sm">Webhooks</span>
+                                </div>
+                                <span className="text-xs font-bold text-green-600">Active</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Tables Grid */}
@@ -161,8 +208,10 @@ export default function Dashboard() {
                             <table className="w-full text-left">
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-400 font-semibold">
                                     <tr>
-                                        <th className="px-6 py-3">Date</th>
-                                        <th className="px-6 py-3">Details</th>
+                                        <th className="px-6 py-3">Date & Time</th>
+                                        <th className="px-6 py-3">Hotel</th>
+                                        <th className="px-6 py-3">Qty</th>
+                                        <th className="px-6 py-3">Amount</th>
                                         <th className="px-6 py-3 text-right">Status</th>
                                     </tr>
                                 </thead>
@@ -170,12 +219,17 @@ export default function Dashboard() {
                                     {stats?.recentOrders.map((order: any) => (
                                         <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-6 py-4 text-gray-600 whitespace-nowrap">
-                                                {new Date(order.bookedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                <div>{new Date(order.bookedAt).toLocaleDateString('en-GB')}</div>
+                                                <div className="text-xs text-gray-400">{new Date(order.bookedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
                                             </td>
+                                            <td className="px-6 py-4 font-medium text-gray-900">{order.hotel.name}</td>
                                             <td className="px-6 py-4">
-                                                <div className="font-bold text-gray-800 flex items-center gap-2">
-                                                    <span>🌳</span> {order.quantity} Tree{order.quantity > 1 ? 's' : ''}
+                                                <div className="font-bold text-gray-800 flex items-center gap-1">
+                                                    <span>🌳</span> {order.quantity}
                                                 </div>
+                                            </td>
+                                            <td className="px-6 py-4 font-medium text-gray-600">
+                                                {order.amount.toFixed(2)} {order.currency}
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 {order.amount === 0 ? (
@@ -187,7 +241,7 @@ export default function Dashboard() {
                                         </tr>
                                     ))}
                                     {stats?.recentOrders.length === 0 && (
-                                        <tr><td colSpan={3} className="px-6 py-8 text-center text-gray-400">No recent orders</td></tr>
+                                        <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-400">No recent orders</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -198,6 +252,7 @@ export default function Dashboard() {
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
                         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                             <h3 className="font-bold text-gray-800">Invoices</h3>
+                            <button className="text-xs font-bold text-[#669933] hover:underline uppercase">View History</button>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
@@ -241,6 +296,9 @@ export default function Dashboard() {
                                             </td>
                                         </tr>
                                     ))}
+                                    {stats?.invoices.length === 0 && (
+                                        <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 italic">No historical invoices found</td></tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -248,7 +306,7 @@ export default function Dashboard() {
                 </div>
 
                 <div className="mt-12 text-center border-t border-gray-200 pt-8">
-                    <p className="text-sm text-gray-400">Powered by <span className="font-bold text-[#669933]">Click A Tree</span></p>
+                    <p className="text-sm text-gray-400">Powered by <span className="font-bold text-[#669933]">Click A Tree</span> — Planting trees for a better tomorrow.</p>
                 </div>
 
             </main>
