@@ -1,3 +1,8 @@
+import './globals.css'; // <--- WICHTIGSTE ZEILE!
+import { Inter } from 'next/font/google';
+
+const inter = Inter({ subsets: ['latin'] });
+
 export default function RootLayout({
     children,
 }: {
@@ -6,9 +11,9 @@ export default function RootLayout({
     return (
         <html lang="en">
             <head>
-                <title>Click A Tree - Mews Integration</title>
+                <title>Click A Tree - Admin</title>
             </head>
-            <body>{children}</body>
+            <body className={inter.className}>{children}</body>
         </html>
     );
 }
