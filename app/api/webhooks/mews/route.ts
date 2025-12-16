@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server';
 import { webhookHandler, MewsWebhookEvent } from '@/lib/webhook-handler';
 import { webhookLogger } from '@/lib/logger';
+import { syncTreeOrdersV2 } from '@/lib/sync-v2';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -67,6 +68,14 @@ export async function POST(request: Request) {
 
         // Process event asynchronously (don't block response)
         // Mews expects a quick 200 OK response
+
+        // Trigger auto-sync
+        syncTreeOrdersV2().catch((error: any) => {
+            webhookLogger.error('auto_sync_failed', 'Automatic sync triggers by webhook failed', error, {
+                eventId: event.Id,
+            });
+        });
+
         webhookHandler.processEvent(event).catch((error) => {
             webhookLogger.error('async_process_failed', 'Failed to process event async', error, {
                 eventId: event.Id,

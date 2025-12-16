@@ -92,6 +92,7 @@ export async function syncTreeOrdersV2() {
             amount: toNumber(item.Amount?.Value ?? item.AmountBeforeTaxes?.Value, 0),
             currency: item.Amount?.Currency || item.AmountBeforeTaxes?.Currency || 'EUR',
             bookedAt: toDate(item.ConsumptionUtc || item.CreatedUtc),
+            state: item.State,
         })),
         ...treeOrderItems.map((item: any) => ({
             mewsId: item.Id,
@@ -99,6 +100,7 @@ export async function syncTreeOrdersV2() {
             amount: toNumber(item.Amount?.Value ?? item.TotalPrice?.Value, 0),
             currency: item.Amount?.Currency || item.TotalPrice?.Currency || 'EUR',
             bookedAt: toDate(item.CreatedUtc),
+            state: item.State,
         })),
         ...treeAssignments.map((item: any) => ({
             mewsId: item.Id,
@@ -106,6 +108,7 @@ export async function syncTreeOrdersV2() {
             amount: toNumber(item.Amount?.Value ?? item.Price?.Value, 0),
             currency: item.Amount?.Currency || item.Price?.Currency || 'EUR',
             bookedAt: toDate(item.StartUtc || item.CreatedUtc),
+            state: item.State,
         })),
     ];
 
@@ -113,6 +116,8 @@ export async function syncTreeOrdersV2() {
 
     if (treeLines.length === 0) {
         console.log('[sync] no tree sales found in window');
+        // Even if no tree lines found in this window, we can't really do much about cleanup outside the window.
+        // But the user issue is usually about recent cancellations.
         return;
     }
 
@@ -126,6 +131,13 @@ export async function syncTreeOrdersV2() {
     });
 
     for (const line of treeLines) {
+        // Handle cancellations
+        if (line.state === 'Canceled' || line.state === 'Voided' || line.quantity === 0) {
+            await prisma.treeOrder.deleteMany({ where: { mewsId: line.mewsId } });
+            console.log(`[sync] deleted/skipped canceled order ${line.mewsId} (state: ${line.state}, qty: ${line.quantity})`);
+            continue;
+        }
+
         await prisma.treeOrder.upsert({
             where: { mewsId: line.mewsId },
             update: {
@@ -146,5 +158,5 @@ export async function syncTreeOrdersV2() {
         });
     }
 
-    console.log('[sync] saved tree orders to database');
+    console.log('[sync] processed tree orders');
 }
