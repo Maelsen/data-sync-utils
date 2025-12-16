@@ -3,8 +3,12 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET() {
     try {
+        // Only count trees from non-canceled orders (amount > 0)
         const totalTrees = await prisma.treeOrder.aggregate({
             _sum: { quantity: true },
+            where: {
+                amount: { gt: 0 }
+            }
         });
 
         const recentOrders = await prisma.treeOrder.findMany({
