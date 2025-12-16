@@ -58,8 +58,18 @@ export async function POST(request: Request) {
         // Get raw body
         const rawBody = await request.text();
 
+        // LOG RAW PAYLOAD FOR DEBUGGING
+        console.log('=== MEWS WEBHOOK RAW PAYLOAD ===');
+        console.log(rawBody);
+        console.log('=== END RAW PAYLOAD ===');
+
         // Parse event as envelope
         const envelope: MewsWebhookEnvelope = JSON.parse(rawBody);
+
+        // LOG PARSED ENVELOPE
+        webhookLogger.info('webhook_parsed', 'Parsed webhook envelope', {
+            fullPayload: envelope, // Log the complete parsed object
+        });
 
         // Basic validation
         if (!envelope.Events && !envelope.EnterpriseId) {
