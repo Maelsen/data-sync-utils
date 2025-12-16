@@ -157,11 +157,37 @@ export async function syncTreeOrdersV2() {
         create: { mewsId: hotelId, name: hotelName },
     });
 
+    // Get all existing tree orders for this hotel from the database
+    const existingOrders = await prisma.treeOrder.findMany({
+        where: { hotelId: hotel.id },
+        select: { mewsId: true, id: true },
+    });
+
+    // Create a Set of mewsIds from the current Mews API response
+    const currentMewsIds = new Set(treeLines.map((line: any) => line.mewsId));
+
+    // Find orders that exist in DB but are NOT in the current Mews response
+    // These are the canceled/deleted orders
+    const ordersToDelete = existingOrders.filter((order) => !currentMewsIds.has(order.mewsId));
+
+    console.log(`[sync] DEBUG: Existing orders in DB: ${existingOrders.length}`);
+    console.log(`[sync] DEBUG: Current orders from Mews: ${currentMewsIds.size}`);
+    console.log(`[sync] DEBUG: Orders to delete (no longer in Mews): ${ordersToDelete.length}`);
+
+    // Delete orders that are no longer in Mews (they were canceled)
+    if (ordersToDelete.length > 0) {
+        const deletedIds = ordersToDelete.map((o) => o.mewsId);
+        await prisma.treeOrder.deleteMany({
+            where: { mewsId: { in: deletedIds } },
+        });
+        console.log(`[sync] deleted ${ordersToDelete.length} canceled orders: ${deletedIds.map(id => id.slice(0, 8)).join(', ')}`);
+    }
+
+    // Process current tree lines from Mews
     for (const line of treeLines) {
-        // Handle cancellations
+        // Skip if state indicates cancellation (defensive check, though Mews likely won't return these)
         if (line.state === 'Canceled' || line.state === 'Voided' || line.quantity === 0) {
-            await prisma.treeOrder.deleteMany({ where: { mewsId: line.mewsId } });
-            console.log(`[sync] deleted/skipped canceled order ${line.mewsId} (state: ${line.state}, qty: ${line.quantity})`);
+            console.log(`[sync] skipping order ${line.mewsId.slice(0, 8)}... with state: ${line.state}, qty: ${line.quantity}`);
             continue;
         }
 
