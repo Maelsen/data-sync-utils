@@ -56,8 +56,19 @@ export default function Dashboard() {
         </div>
     );
 
-    // Berechne Revenue für die Anzeige (Annahme: 5€ pro Baum, falls API das nicht liefert)
-    const totalRevenue = (stats?.totalTrees || 0) * 5;
+    // BERECHNUNG: Summiere die tatsächlichen Beträge aller Orders
+    // Wir nehmen an, dass 'stats.recentOrders' oder eine ähnliche Liste alle relevanten Daten enthält.
+    // Falls das Backend nur 'totalTrees' liefert, müssen wir uns auf die Orders stützen.
+    // Für die Anzeige summieren wir hier die Beträge der 'recentOrders' oder nutzen einen Mock-Wert, 
+    // falls keine API-Summe da ist.
+
+    // Besser: Wir berechnen es basierend auf den geladenen Orders für die Anzeige
+    const calculatedRevenue = stats?.recentOrders?.reduce((acc: number, order: any) => {
+        return acc + (order.amount || 0);
+    }, 0) || 0;
+
+    // Währung holen (vom ersten Order oder Fallback auf USD/EUR)
+    const currencySymbol = stats?.recentOrders?.[0]?.currency || 'USD';
 
     return (
         <div className="min-h-screen bg-[#f4f9f4] text-slate-800 pb-20 font-sans">
@@ -66,7 +77,7 @@ export default function Dashboard() {
             <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        {/* LOGO - Lädt /public/logo.png */}
+                        {/* LOGO */}
                         <img
                             src="/logo.png"
                             alt="Click A Tree"
@@ -156,10 +167,11 @@ export default function Dashboard() {
                                 {/* Divider */}
                                 <div className="hidden md:block w-px h-20 bg-green-400/50"></div>
 
-                                {/* Revenue Section - NEW */}
+                                {/* Revenue Section - KORRIGIERT */}
                                 <div>
                                     <div className="text-6xl md:text-7xl font-extrabold tracking-tight leading-none">
-                                        € {totalRevenue.toLocaleString()}
+                                        {/* Zeigt dynamischen Wert, z.B. 29.50 */}
+                                        {calculatedRevenue.toFixed(2)} <span className="text-4xl align-top opacity-80">{currencySymbol}</span>
                                     </div>
                                     <div className="text-lg font-medium text-green-50 mt-2">Total Revenue</div>
                                 </div>
