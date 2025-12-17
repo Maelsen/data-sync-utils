@@ -318,7 +318,7 @@ export default function Dashboard() {
                 </div>
 
                 <div className="mt-12 text-center border-t border-gray-200 pt-8">
-                    <p className="text-sm text-gray-400">Powered by <span className="font-bold text-[#669933]">Click A Tree</span> — Planting trees for a better tomorrow.</p>
+                    <p className="text-sm text-gray-400">Powered by <span className="font-bold text-[#669933]">Click A Tree</span> </p>
                 </div>
 
             </main>
