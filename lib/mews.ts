@@ -6,6 +6,7 @@ const MEWS_API_URL = 'https://api.mews-demo.com/api/connector/v1';
 interface MewsConfig {
     clientToken: string;
     accessToken: string;
+    clientName?: string; // e.g. "Click A Tree Integration 1.0.0"
 }
 
 export class MewsClient {
@@ -20,6 +21,7 @@ export class MewsClient {
             const response = await axios.post(`${MEWS_API_URL}/${endpoint}`, {
                 ClientToken: this.config.clientToken,
                 AccessToken: this.config.accessToken,
+                Client: this.config.clientName || 'Click A Tree Integration 1.0.0',
                 ...data,
             });
             return response.data;
@@ -34,17 +36,18 @@ export class MewsClient {
         const payload = cursor
             ? { Cursor: cursor }
             : {
-                  StartUtc: startUtc,
-                  EndUtc: endUtc,
-                  Extent: {
-                      Products: true,
-                      Items: true, // posted charges
-                      ProductAssignments: true, // pre-stay upsells
-                      Orders: true,
-                      OrderItems: true,
-                      Services: true,
-                  },
-              };
+                StartUtc: startUtc,
+                EndUtc: endUtc,
+                Extent: {
+                    Products: true,
+                    Items: true, // posted charges
+                    ProductAssignments: true, // pre-stay upsells
+                    Orders: true,
+                    OrderItems: true,
+                    Services: true,
+                    Customers: true
+                },
+            };
 
         return this.request('reservations/getAll', payload);
     }

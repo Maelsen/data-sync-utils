@@ -29,6 +29,7 @@ export async function syncTreeOrdersV2() {
     const mews = new MewsClient({
         clientToken: CLIENT_TOKEN,
         accessToken: ACCESS_TOKEN,
+        clientName: 'Click A Tree Integration 1.0.0',
     });
 
     const lookbackDays = 30;
