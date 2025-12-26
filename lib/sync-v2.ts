@@ -203,11 +203,14 @@ export async function syncTreeOrdersV2() {
 
     // Process current tree lines from Mews
     for (const line of treeLines) {
-        // Skip if state indicates cancellation (defensive check, though Mews likely won't return these)
+        /* 
+        // We do NOT want to skip canceled orders anymore. 
+        // We want to update them in the DB so their state becomes 'Canceled'.
         if (line.state === 'Canceled' || line.state === 'Voided' || line.quantity === 0) {
             console.log(`[sync] skipping order ${line.mewsId.slice(0, 8)}... with state: ${line.state}, qty: ${line.quantity}`);
             continue;
         }
+        */
 
         await prisma.treeOrder.upsert({
             where: { mewsId: line.mewsId },
