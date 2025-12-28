@@ -38,6 +38,7 @@ export class MewsClient {
             : {
                 StartUtc: startUtc,
                 EndUtc: endUtc,
+                TimeFilter: 'Updated',
                 Extent: {
                     Products: true,
                     Items: true, // posted charges
