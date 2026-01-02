@@ -14,6 +14,7 @@ import { parseStringPromise } from 'xml2js';
 import { credentialManager, HotelSpiderCredentials } from '@/lib/credential-manager';
 import { timingSafeEqual } from 'crypto';
 import { prisma } from '@/lib/prisma';
+import { hotelspiderLogger, CorrelationContext } from '@/lib/logger';
 
 export class HotelSpiderWebhookHandler implements IPmsWebhookHandler {
   private hotelId: string;
@@ -96,10 +97,22 @@ export class HotelSpiderWebhookHandler implements IPmsWebhookHandler {
     rawPayload: string,
     headers: Record<string, string>
   ): Promise<WebhookProcessResult> {
+    // Generate correlation ID for tracking
+    const correlationId = CorrelationContext.generate();
+
     try {
+      hotelspiderLogger.info('webhook_received', 'Processing HotelSpider webhook', {
+        correlationId,
+        hotelId: this.hotelId,
+      });
+
       // Validate authentication
       const isAuthenticated = await this.validateBasicAuth(headers);
       if (!isAuthenticated) {
+        hotelspiderLogger.warn('webhook_auth_failed', 'Authentication failed', {
+          correlationId,
+          hotelId: this.hotelId,
+        });
         return {
           success: false,
           processedOrders: [],
@@ -113,6 +126,11 @@ export class HotelSpiderWebhookHandler implements IPmsWebhookHandler {
         mergeAttrs: true,
       });
 
+      hotelspiderLogger.info('webhook_parsed', 'XML parsed successfully', {
+        correlationId,
+        hotelId: this.hotelId,
+      });
+
       // Extract event ID for deduplication
       const eventId = this.extractEventId(parsed);
 
@@ -123,7 +141,11 @@ export class HotelSpiderWebhookHandler implements IPmsWebhookHandler {
         });
 
         if (existing && existing.processed) {
-          console.log(`Duplicate webhook event ${eventId}, skipping`);
+          hotelspiderLogger.info('webhook_duplicate', 'Duplicate webhook event, skipping', {
+            correlationId,
+            eventId,
+            hotelId: this.hotelId,
+          });
           return {
             success: true,
             processedOrders: [],
@@ -227,16 +249,29 @@ export class HotelSpiderWebhookHandler implements IPmsWebhookHandler {
         }
       }
 
+      hotelspiderLogger.info('webhook_success', 'Webhook processed successfully', {
+        correlationId,
+        eventId: this.extractEventId(parsed),
+        hotelId: this.hotelId,
+        reservationCount: reservations.length,
+        treeOrderCount: orders.length,
+      });
+
       return {
         success: true,
         processedOrders: orders,
         metadata: {
           reservationCount: reservations.length,
           treeOrderCount: orders.length,
+          eventId: this.extractEventId(parsed),
         },
       };
     } catch (error: any) {
-      console.error('HotelSpider webhook processing error:', error);
+      hotelspiderLogger.error('webhook_error', 'Webhook processing error', error, {
+        correlationId,
+        hotelId: this.hotelId,
+        errorMessage: error.message,
+      });
       return {
         success: false,
         processedOrders: [],

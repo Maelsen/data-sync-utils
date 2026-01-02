@@ -1,6 +1,8 @@
 // Structured logging system for Mews certification
 // Provides consistent log format and levels
 
+import { randomUUID } from 'crypto';
+
 export enum LogLevel {
     DEBUG = 'debug',
     INFO = 'info',
@@ -16,6 +18,8 @@ export interface LogEntry {
     message: string;
     hotelId?: string;
     duration?: number;
+    correlationId?: string; // NEW: Track requests across services
+    eventId?: string; // NEW: PMS event ID for correlation
     metadata?: Record<string, any>;
     error?: string;
 }
@@ -104,9 +108,53 @@ class Logger {
     }
 }
 
+/**
+ * Correlation Context Manager
+ * Manages correlation IDs for tracking requests across services
+ */
+export class CorrelationContext {
+    private static contexts = new Map<string, string>();
+
+    /**
+     * Generate a new correlation ID
+     */
+    static generate(): string {
+        return randomUUID();
+    }
+
+    /**
+     * Set correlation ID for a request
+     */
+    static set(key: string, correlationId: string): void {
+        this.contexts.set(key, correlationId);
+    }
+
+    /**
+     * Get correlation ID for a request
+     */
+    static get(key: string): string | undefined {
+        return this.contexts.get(key);
+    }
+
+    /**
+     * Clear correlation ID for a request
+     */
+    static clear(key: string): void {
+        this.contexts.delete(key);
+    }
+
+    /**
+     * Clear all correlation IDs (cleanup)
+     */
+    static clearAll(): void {
+        this.contexts.clear();
+    }
+}
+
 // Export singleton instances for different services
 export const mewsLogger = new Logger('mews-integration');
 export const webhookLogger = new Logger('webhook-handler');
+export const hotelspiderLogger = new Logger('hotelspider-integration');
 export const invoiceLogger = new Logger('invoice-generator');
 export const apiLogger = new Logger('api');
 
