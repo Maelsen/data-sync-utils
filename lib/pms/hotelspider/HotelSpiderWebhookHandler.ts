@@ -12,6 +12,7 @@ import {
 import { TreeOrderData } from '../interfaces/IPmsClient';
 import { parseStringPromise } from 'xml2js';
 import { credentialManager, HotelSpiderCredentials } from '@/lib/credential-manager';
+import { timingSafeEqual } from 'crypto';
 
 export class HotelSpiderWebhookHandler implements IPmsWebhookHandler {
   private hotelId: string;
@@ -67,8 +68,20 @@ export class HotelSpiderWebhookHandler implements IPmsWebhookHandler {
       // Get stored credentials
       const storedCreds = await this.getCredentials();
 
-      // Compare (constant-time comparison would be better for production)
-      return username === storedCreds.username && password === storedCreds.password;
+      // Use constant-time comparison to prevent timing attacks
+      const usernameMatch = username.length === storedCreds.username.length &&
+        timingSafeEqual(
+          Buffer.from(username),
+          Buffer.from(storedCreds.username)
+        );
+
+      const passwordMatch = password.length === storedCreds.password.length &&
+        timingSafeEqual(
+          Buffer.from(password),
+          Buffer.from(storedCreds.password)
+        );
+
+      return usernameMatch && passwordMatch;
     } catch (error) {
       console.error('Basic Auth validation error:', error);
       return false;

@@ -9,11 +9,11 @@ import { PmsType } from '@prisma/client';
 import { IPmsClient } from './interfaces/IPmsClient';
 import { IPmsWebhookHandler } from './interfaces/IPmsWebhookHandler';
 
-// Import concrete implementations (will be created next)
+// Import concrete implementations
 // import { MewsClient } from './mews/MewsClient';
 // import { MewsWebhookHandler } from './mews/MewsWebhookHandler';
-// import { HotelSpiderClient } from './hotelspider/HotelSpiderClient';
-// import { HotelSpiderWebhookHandler } from './hotelspider/HotelSpiderWebhookHandler';
+import { HotelSpiderClient } from './hotelspider/HotelSpiderClient';
+import { HotelSpiderWebhookHandler } from './hotelspider/HotelSpiderWebhookHandler';
 
 /**
  * PMS Factory
@@ -32,8 +32,7 @@ export class PmsFactory {
         throw new Error('MewsClient not yet implemented - use legacy code for now');
 
       case 'hotelspider':
-        // return new HotelSpiderClient(hotelId);
-        throw new Error('HotelSpiderClient not yet implemented');
+        return new HotelSpiderClient(hotelId);
 
       default:
         throw new Error(`Unknown PMS type: ${pmsType}`);
@@ -56,8 +55,7 @@ export class PmsFactory {
         throw new Error('MewsWebhookHandler not yet implemented - use legacy code for now');
 
       case 'hotelspider':
-        // return new HotelSpiderWebhookHandler(hotelId);
-        throw new Error('HotelSpiderWebhookHandler not yet implemented');
+        return new HotelSpiderWebhookHandler(hotelId);
 
       default:
         throw new Error(`Unknown PMS type: ${pmsType}`);
