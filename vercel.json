@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron/retry-webhooks",
+      "path": "/api/admin/retry-webhooks",
       "schedule": "*/5 * * * *"
     }
   ]
