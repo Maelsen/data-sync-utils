@@ -11,29 +11,43 @@ datasource db {
   directUrl = env("POSTGRES_URL_NON_POOLING") // Uses a direct connection
 }
 
+// Multi-PMS support: Mews, HotelSpider, etc.
+enum PmsType {
+  mews
+  hotelspider
+}
+
 model Hotel {
-  id        String   @id @default(uuid())
-  mewsId    String   @unique
-  name      String
-  orders    TreeOrder[]
-  invoices  Invoice[]
-  config    HotelConfig?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  mewsId      String   @unique // DEPRECATED: Use externalId - kept for backward compatibility
+  name        String
+  pmsType     PmsType  @default(mews) // PMS system type
+  externalId  String?  // Generic external ID (Mews enterprise ID, HotelSpider hotel code, etc.)
+  orders      TreeOrder[]
+  invoices    Invoice[]
+  config      HotelConfig?
+  credentials HotelCredentials? // NEW: Encrypted per-hotel credentials
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([pmsType, externalId])
+  @@index([pmsType])
 }
 
 model TreeOrder {
   id          String   @id @default(uuid())
-  mewsId      String   @unique // External ID from Mews (Reservation ID or Item ID)
+  mewsId      String   @unique // External ID from PMS (prefixed with pmsType, e.g., "mews-123", "hotelspider-456")
   hotelId     String
   hotel       Hotel    @relation(fields: [hotelId], references: [id])
+  pmsType     PmsType  @default(mews) // Which PMS this order came from
   quantity    Int
   amount      Float
   currency    String
   createdAt   DateTime @default(now())
-  bookedAt    DateTime // When it was booked in Mews
-  
+  bookedAt    DateTime // When it was booked in the PMS
+
   @@index([hotelId, bookedAt])
+  @@index([pmsType, hotelId])
 }
 
 model Invoice {
@@ -51,20 +65,23 @@ model Invoice {
   @@index([hotelId, year, month])
 }
 
-// NEW: Webhook events for audit trail and Mews certification
+// NEW: Webhook events for audit trail and PMS certification
 model WebhookEvent {
   id          String   @id @default(uuid())
-  eventType   String   // ServiceOrderCreated, ServiceOrderUpdated, etc.
-  eventId     String?  @unique // Mews event ID for deduplication
-  payload     Json     // Full Mews event data
+  eventType   String   // ServiceOrderCreated, OTA_HotelResNotifRQ, etc.
+  eventId     String?  @unique // PMS event ID for deduplication
+  pmsType     PmsType  @default(mews) // Which PMS this webhook came from
+  hotelId     String?  // Associated hotel (if identifiable)
+  payload     Json     // Full webhook payload data
   processed   Boolean  @default(false)
   processedAt DateTime?
   error       String?
   retryCount  Int      @default(0)
   createdAt   DateTime @default(now())
-  
+
   @@index([processed, createdAt])
   @@index([eventType, createdAt])
+  @@index([pmsType, hotelId])
 }
 
 // NEW: Hotel configuration for multi-tenant support
@@ -72,11 +89,30 @@ model HotelConfig {
   id              String   @id @default(uuid())
   hotelId         String   @unique
   hotel           Hotel    @relation(fields: [hotelId], references: [id])
-  mewsAccessToken String   // Encrypted access token
+  mewsAccessToken String   // DEPRECATED: Use HotelCredentials instead
   webhookEnabled  Boolean  @default(true)
   syncFrequency   String   @default("daily") // hourly, daily, webhook-only
   active          Boolean  @default(true)
   lastSyncAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// NEW: Encrypted per-hotel credentials for multi-PMS support
+model HotelCredentials {
+  id              String   @id @default(uuid())
+  hotelId         String   @unique
+  hotel           Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  // Mews-specific credentials (encrypted)
+  mewsClientToken String?  // Encrypted Mews client token
+  mewsAccessToken String?  // Encrypted Mews access token
+
+  // HotelSpider-specific credentials (encrypted)
+  hotelspiderUsername String?  // Encrypted username
+  hotelspiderPassword String?  // Encrypted password
+  hotelspiderHotelCode String?  // Plain text hotel identifier
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
