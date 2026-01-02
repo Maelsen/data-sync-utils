@@ -13,6 +13,7 @@ import { TreeOrderData } from '../interfaces/IPmsClient';
 import { parseStringPromise } from 'xml2js';
 import { credentialManager, HotelSpiderCredentials } from '@/lib/credential-manager';
 import { timingSafeEqual } from 'crypto';
+import { prisma } from '@/lib/prisma';
 
 export class HotelSpiderWebhookHandler implements IPmsWebhookHandler {
   private hotelId: string;
@@ -111,6 +112,25 @@ export class HotelSpiderWebhookHandler implements IPmsWebhookHandler {
         explicitArray: false,
         mergeAttrs: true,
       });
+
+      // Extract event ID for deduplication
+      const eventId = this.extractEventId(parsed);
+
+      // Check for duplicate webhook
+      if (eventId) {
+        const existing = await prisma.webhookEvent.findUnique({
+          where: { eventId },
+        });
+
+        if (existing && existing.processed) {
+          console.log(`Duplicate webhook event ${eventId}, skipping`);
+          return {
+            success: true,
+            processedOrders: [],
+            metadata: { duplicate: true, eventId },
+          };
+        }
+      }
 
       const orders: TreeOrderData[] = [];
 
@@ -237,6 +257,25 @@ export class HotelSpiderWebhookHandler implements IPmsWebhookHandler {
 
     return treeKeywords.some(
       (keyword) => serviceCode.includes(keyword) || serviceName.includes(keyword)
+    );
+  }
+
+  /**
+   * Extract event ID from OTA XML for deduplication
+   * Checks multiple possible fields: MessageID, EchoToken, UniqueID
+   */
+  private extractEventId(parsed: any): string | null {
+    const otaRoot = parsed?.OTA_HotelResNotifRQ;
+    if (!otaRoot) {
+      return null;
+    }
+
+    // Try multiple fields in order of preference
+    return (
+      otaRoot.MessageID ||
+      otaRoot.EchoToken ||
+      otaRoot.UniqueID?.ID ||
+      null
     );
   }
 }
