@@ -26,11 +26,11 @@ export async function GET(
       return NextResponse.json({ error: 'Hotel not found' }, { status: 404 });
     }
 
-    // Fetch recent orders (raw data)
+    // Fetch recent orders (raw data) - sorted by bookedAt ascending (earliest first)
     const recentOrdersRaw = await prisma.treeOrder.findMany({
       where: { hotelId },
-      orderBy: { bookedAt: 'desc' },
-      take: 20,
+      orderBy: { bookedAt: 'asc' },
+      take: 100, // Increased limit for filtering
     });
 
     // Calculate total revenue (sum of all amounts for non-canceled orders)

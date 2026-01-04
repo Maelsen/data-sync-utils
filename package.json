@@ -21,7 +21,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20.19.25",
-    "@types/pdfkit": "^0.17.3",
+    "@types/pdfkit": "^0.17.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "axios": "^1.13.2",
