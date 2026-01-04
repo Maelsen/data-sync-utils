@@ -103,6 +103,15 @@ export default function HotelDashboard({
     );
   }) || [];
 
+  // Calculate filtered stats based on filtered orders
+  const displayTotalTrees = selectedMonth && selectedYear
+    ? filteredOrders.reduce((sum: number, order: any) => sum + (order.quantity || 0), 0)
+    : stats?.totalTrees || 0;
+
+  const displayTotalRevenue = selectedMonth && selectedYear
+    ? filteredOrders.reduce((sum: number, order: any) => sum + (order.amount || 0), 0)
+    : stats?.totalRevenue || 0;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -249,18 +258,18 @@ export default function HotelDashboard({
         {/* Stats Overview */}
         <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-8 text-white mb-8">
           <h2 className="text-sm font-medium uppercase tracking-wide opacity-90">
-            Total Impact & Revenue
+            {selectedMonth && selectedYear ? `Impact & Revenue - ${new Date(0, selectedMonth - 1).toLocaleString('en', { month: 'long' })} ${selectedYear}` : 'Total Impact & Revenue'}
           </h2>
           <div className="mt-4 grid md:grid-cols-2 gap-8">
             <div>
               <div className="text-5xl font-bold">
-                {stats?.totalTrees?.toLocaleString() || 0}
+                {displayTotalTrees.toLocaleString()}
               </div>
               <div className="text-sm opacity-90 mt-1">Trees Planted</div>
             </div>
             <div>
               <div className="text-5xl font-bold">
-                {stats?.totalRevenue?.toFixed(2) || '0.00'} {stats?.currency || 'EUR'}
+                {displayTotalRevenue.toFixed(2)} {stats?.currency || 'EUR'}
               </div>
               <div className="text-sm opacity-90 mt-1">Total Revenue</div>
             </div>

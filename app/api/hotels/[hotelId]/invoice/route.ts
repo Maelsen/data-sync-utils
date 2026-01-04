@@ -180,7 +180,7 @@ async function generateInvoicePDF(data: {
       .fontSize(10)
       .font('Helvetica')
       .fillColor('#333333')
-      .text(`Total Trees Planted: ${data.totalTrees} 🌳`, 60, summaryY + 35)
+      .text(`Total Trees Planted: ${data.totalTrees}`, 60, summaryY + 35)
       .text(
         `Total Amount: ${data.totalAmount.toFixed(2)} ${data.currency}`,
         60,
