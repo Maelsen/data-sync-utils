@@ -82,7 +82,7 @@ export class WebhookRetryService {
   private async retryWebhookEvent(event: any): Promise<boolean> {
     try {
       if (!event.hotelId) {
-        webhookLogger.error('retry_no_hotel', 'Cannot retry webhook without hotelId', {
+        webhookLogger.error('retry_no_hotel', 'Cannot retry webhook without hotelId', undefined, {
           eventId: event.id,
         });
         return false;
@@ -94,7 +94,7 @@ export class WebhookRetryService {
       });
 
       if (!hotel) {
-        webhookLogger.error('retry_hotel_not_found', 'Hotel not found for retry', {
+        webhookLogger.error('retry_hotel_not_found', 'Hotel not found for retry', undefined, {
           hotelId: event.hotelId,
           eventId: event.id,
         });
@@ -203,6 +203,7 @@ export class WebhookRetryService {
         webhookLogger.error(
           'critical_webhook_failures',
           `ALERT: ${criticalFailures} webhooks failed max retries in last hour`,
+          undefined,
           {
             criticalFailures,
             threshold: 5,

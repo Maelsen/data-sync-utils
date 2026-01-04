@@ -90,6 +90,26 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Return appropriate error format based on PMS type
+      if (hotel.pmsType === 'hotelspider') {
+        // HotelSpider expects OTA error format
+        const timestamp = new Date().toISOString();
+        const errorMessage = result.errors?.join(', ') || 'Processing failed';
+        const xmlError = `<?xml version="1.0" encoding="UTF-8"?>
+<OTA_HotelResNotifRS xmlns="http://www.opentravel.org/OTA/2003/05" TimeStamp="${timestamp}" Version="1.0">
+  <Errors>
+    <Error Type="3" Code="450">${errorMessage}</Error>
+  </Errors>
+</OTA_HotelResNotifRS>`;
+
+        return new NextResponse(xmlError, {
+          status: 200, // OTA spec: return 200 even for errors, error is in XML
+          headers: {
+            'Content-Type': 'application/xml',
+          },
+        });
+      }
+
       return NextResponse.json(
         { error: 'Processing failed', details: result.errors },
         { status: 500 }
@@ -123,17 +143,42 @@ export async function POST(request: NextRequest) {
     }
 
     // Log successful webhook event
+    const eventId = result.metadata?.eventId || null;
     await prisma.webhookEvent.create({
       data: {
         pmsType: hotel.pmsType,
         hotelId: hotel.id,
         eventType: 'webhook_processed',
+        eventId: eventId,
         payload: result.metadata || {},
         processed: true,
         processedAt: new Date(),
       },
     });
 
+    // Return appropriate response format based on PMS type
+    if (hotel.pmsType === 'hotelspider') {
+      // HotelSpider expects OTA_HotelResNotifRS XML response
+      const timestamp = new Date().toISOString();
+      const xmlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+<OTA_HotelResNotifRS xmlns="http://www.opentravel.org/OTA/2003/05" TimeStamp="${timestamp}" Version="1.0">
+  <Success/>
+  <HotelReservations>
+    <HotelReservation ResStatus="Book" CreateDateTime="${timestamp}" LastModifyDateTime="${timestamp}">
+      <UniqueID Type="14" ID="${eventId || 'processed'}"/>
+    </HotelReservation>
+  </HotelReservations>
+</OTA_HotelResNotifRS>`;
+
+      return new NextResponse(xmlResponse, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/xml',
+        },
+      });
+    }
+
+    // For other PMS types (e.g., Mews), return JSON
     return NextResponse.json({
       success: true,
       ordersProcessed: result.processedOrders.length,

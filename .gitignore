@@ -43,3 +43,4 @@ prisma/dev.db-journal
 public/invoices/*.pdf
 
 .vercel
+.env*.local

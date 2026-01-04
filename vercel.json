@@ -3,10 +3,6 @@
     {
       "path": "/api/admin/retry-webhooks",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/health",
-      "schedule": "*/4 * * * *"
     }
   ]
 }
