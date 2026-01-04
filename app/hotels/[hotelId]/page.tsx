@@ -13,6 +13,7 @@ export default function HotelDashboard({
   const [hotel, setHotel] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     fetchHotelData();
@@ -21,9 +22,6 @@ export default function HotelDashboard({
   const fetchHotelData = async () => {
     try {
       setLoading(true);
-      // Note: This endpoint doesn't exist yet but would be created
-      // For now, we redirect to main dashboard
-      // In production, create /api/hotels/[hotelId]/stats
       const response = await axios.get(`/api/hotels/${hotelId}/stats`);
       setHotel(response.data.hotel);
       setStats(response.data);
@@ -33,6 +31,22 @@ export default function HotelDashboard({
       window.location.href = '/hotels';
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSync = async () => {
+    try {
+      setSyncing(true);
+      // For Mews hotels, trigger the sync
+      await axios.get('/api/sync');
+      // Refresh the data after sync
+      await fetchHotelData();
+      alert('Sync completed successfully!');
+    } catch (err: any) {
+      console.error('Sync failed:', err);
+      alert('Sync failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -68,41 +82,68 @@ export default function HotelDashboard({
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/hotels"
-              className="text-gray-500 hover:text-gray-700 transition"
-            >
-              <svg
-                className="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Link
+                href="/hotels"
+                className="text-gray-500 hover:text-gray-700 transition"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{hotel.name}</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span
-                  className={`px-2 py-1 rounded text-xs font-bold ${
-                    hotel.pmsType === 'mews'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-purple-100 text-purple-700'
-                  }`}
+                <svg
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
                 >
-                  {hotel.pmsType.toUpperCase()}
-                </span>
-                <span className="text-sm text-gray-500">•</span>
-                <span className="text-sm text-gray-500">ID: {hotel.externalId}</span>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </Link>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">{hotel.name}</h1>
+                <div className="flex items-center gap-2 mt-1">
+                  <span
+                    className={`px-2 py-1 rounded text-xs font-bold ${
+                      hotel.pmsType === 'mews'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-purple-100 text-purple-700'
+                    }`}
+                  >
+                    {hotel.pmsType.toUpperCase()}
+                  </span>
+                  <span className="text-sm text-gray-500">•</span>
+                  <span className="text-sm text-gray-500">ID: {hotel.externalId}</span>
+                </div>
               </div>
             </div>
+
+            {/* Sync Button - Only for Mews hotels */}
+            {hotel.pmsType === 'mews' && (
+              <button
+                onClick={handleSync}
+                disabled={syncing || loading}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Sync data from Mews"
+              >
+                <svg
+                  className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                {syncing ? 'Syncing...' : 'Sync Data'}
+              </button>
+            )}
           </div>
         </div>
       </div>

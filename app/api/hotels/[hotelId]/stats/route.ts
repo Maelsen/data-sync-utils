@@ -26,24 +26,34 @@ export async function GET(
       return NextResponse.json({ error: 'Hotel not found' }, { status: 404 });
     }
 
-    // Fetch recent orders
-    const recentOrders = await prisma.treeOrder.findMany({
+    // Fetch recent orders (raw data)
+    const recentOrdersRaw = await prisma.treeOrder.findMany({
       where: { hotelId },
       orderBy: { bookedAt: 'desc' },
       take: 20,
     });
 
-    // Calculate total trees and revenue
+    // Calculate total revenue (sum of all amounts for non-canceled orders)
     const totals = await prisma.treeOrder.aggregate({
       where: {
         hotelId,
         amount: { gt: 0 }, // Only count non-canceled orders
       },
       _sum: {
-        quantity: true,
         amount: true,
       },
     });
+
+    // MEWS-specific calculation: Trees based on revenue (5.90$ per tree)
+    // Because Mews sends "1 item" for a package of trees
+    const totalRevenue = totals._sum.amount || 0;
+    const totalTrees = Math.round(totalRevenue / 5.9);
+
+    // Recalculate quantity for each order based on amount
+    const recentOrders = recentOrdersRaw.map(order => ({
+      ...order,
+      quantity: Math.round((order.amount || 0) / 5.9) || order.quantity
+    }));
 
     // Fetch invoices
     const invoices = await prisma.invoice.findMany({
@@ -59,8 +69,8 @@ export async function GET(
         pmsType: hotel.pmsType,
         externalId: hotel.externalId,
       },
-      totalTrees: totals._sum.quantity || 0,
-      totalRevenue: totals._sum.amount || 0,
+      totalTrees,
+      totalRevenue,
       currency: recentOrders[0]?.currency || 'EUR',
       recentOrders,
       invoices,
