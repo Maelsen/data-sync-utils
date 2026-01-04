@@ -18,6 +18,9 @@ export default function HotelsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [editingHotel, setEditingHotel] = useState<Hotel | null>(null);
+  const [editFormData, setEditFormData] = useState<any>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchHotels();
@@ -39,6 +42,7 @@ export default function HotelsPage() {
 
   const handleDelete = async (hotelId: string, hotelName: string, e: React.MouseEvent) => {
     e.preventDefault(); // Prevent navigation to hotel detail page
+    e.stopPropagation();
 
     const confirmed = window.confirm(
       `Are you sure you want to delete "${hotelName}"?\n\nThis will permanently delete:\n- Hotel configuration\n- All tree orders\n- All invoices\n- All webhook events\n- Encrypted credentials\n\nThis action cannot be undone.`
@@ -57,6 +61,68 @@ export default function HotelsPage() {
       alert('Failed to delete hotel: ' + (err.response?.data?.error || err.message));
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleEdit = async (hotel: Hotel, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    setEditingHotel(hotel);
+    setEditFormData({
+      name: hotel.name,
+      // Credentials will be loaded separately
+      mewsClientToken: '',
+      mewsAccessToken: '',
+      hotelspiderUsername: '',
+      hotelspiderPassword: '',
+      hotelspiderHotelCode: hotel.pmsType === 'hotelspider' ? hotel.externalId : '',
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingHotel) return;
+
+    try {
+      setSaving(true);
+
+      const payload: any = {
+        name: editFormData.name,
+      };
+
+      // Only include credentials if they were changed (not empty)
+      if (editingHotel.pmsType === 'mews') {
+        if (editFormData.mewsClientToken) {
+          payload.mewsClientToken = editFormData.mewsClientToken;
+        }
+        if (editFormData.mewsAccessToken) {
+          payload.mewsAccessToken = editFormData.mewsAccessToken;
+        }
+      } else if (editingHotel.pmsType === 'hotelspider') {
+        if (editFormData.hotelspiderUsername) {
+          payload.hotelspiderUsername = editFormData.hotelspiderUsername;
+        }
+        if (editFormData.hotelspiderPassword) {
+          payload.hotelspiderPassword = editFormData.hotelspiderPassword;
+        }
+        if (editFormData.hotelspiderHotelCode) {
+          payload.hotelspiderHotelCode = editFormData.hotelspiderHotelCode;
+        }
+      }
+
+      await axios.patch(`/api/hotels/${editingHotel.id}`, payload);
+
+      // Refresh the list
+      await fetchHotels();
+
+      // Close modal
+      setEditingHotel(null);
+      setEditFormData({});
+    } catch (err: any) {
+      console.error('Failed to update hotel:', err);
+      alert('Failed to update hotel: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -168,11 +234,11 @@ export default function HotelsPage() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredHotels.map((hotel) => (
-              <div key={hotel.id} className="relative">
+              <div key={hotel.id} className="bg-white rounded-lg border border-gray-200 hover:shadow-lg hover:border-green-300 transition">
                 <Link href={`/hotels/${hotel.id}`}>
-                  <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg hover:border-green-300 transition cursor-pointer">
+                  <div className="p-6 cursor-pointer">
                     <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-lg font-bold text-gray-900 pr-8">{hotel.name}</h3>
+                      <h3 className="text-lg font-bold text-gray-900">{hotel.name}</h3>
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-bold ${
                           hotel.pmsType === 'mews'
@@ -193,46 +259,182 @@ export default function HotelsPage() {
                         {new Date(hotel.createdAt).toLocaleDateString()}
                       </div>
                     </div>
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                      <span className="text-sm text-green-600 font-medium hover:text-green-700">
-                        View Dashboard →
-                      </span>
-                    </div>
                   </div>
                 </Link>
-                {/* Delete Button */}
-                <button
-                  onClick={(e) => handleDelete(hotel.id, hotel.name, e)}
-                  disabled={deleting === hotel.id}
-                  className="absolute top-8 right-8 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed z-10"
-                  title="Delete hotel"
-                >
-                  {deleting === hotel.id ? (
-                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : (
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                {/* Action Buttons */}
+                <div className="px-6 pb-4 pt-2 border-t border-gray-100 flex items-center justify-between">
+                  <Link href={`/hotels/${hotel.id}`}>
+                    <span className="text-sm text-green-600 font-medium hover:text-green-700">
+                      View Dashboard →
+                    </span>
+                  </Link>
+                  <div className="flex items-center gap-2">
+                    {/* Edit Button */}
+                    <button
+                      onClick={(e) => handleEdit(hotel, e)}
+                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                      title="Edit hotel"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  )}
-                </button>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    {/* Delete Button */}
+                    <button
+                      onClick={(e) => handleDelete(hotel.id, hotel.name, e)}
+                      disabled={deleting === hotel.id}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Delete hotel"
+                    >
+                      {deleting === hotel.id ? (
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Edit Modal */}
+      {editingHotel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Edit Hotel</h2>
+              <button
+                onClick={() => setEditingHotel(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Hotel Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Hotel Name
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="Hotel name"
+                />
+              </div>
+
+              {/* Mews Credentials */}
+              {editingHotel.pmsType === 'mews' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Mews Client Token
+                    </label>
+                    <input
+                      type="password"
+                      value={editFormData.mewsClientToken}
+                      onChange={(e) => setEditFormData({ ...editFormData, mewsClientToken: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Leave empty to keep current"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Only fill to update credentials</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Mews Access Token
+                    </label>
+                    <input
+                      type="password"
+                      value={editFormData.mewsAccessToken}
+                      onChange={(e) => setEditFormData({ ...editFormData, mewsAccessToken: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Leave empty to keep current"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Only fill to update credentials</p>
+                  </div>
+                </>
+              )}
+
+              {/* HotelSpider Credentials */}
+              {editingHotel.pmsType === 'hotelspider' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      HotelSpider Hotel Code
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.hotelspiderHotelCode}
+                      onChange={(e) => setEditFormData({ ...editFormData, hotelspiderHotelCode: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Hotel code"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.hotelspiderUsername}
+                      onChange={(e) => setEditFormData({ ...editFormData, hotelspiderUsername: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Leave empty to keep current"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Only fill to update credentials</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={editFormData.hotelspiderPassword}
+                      onChange={(e) => setEditFormData({ ...editFormData, hotelspiderPassword: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Leave empty to keep current"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Only fill to update credentials</p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="mt-6 flex gap-3 justify-end">
+              <button
+                onClick={() => setEditingHotel(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={saving || !editFormData.name}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
