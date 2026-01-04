@@ -52,20 +52,30 @@ export async function GET(
       );
     }
 
-    // Check if credentials exist
-    if (!hotel.credentials?.mewsClientToken || !hotel.credentials?.mewsAccessToken) {
-      return NextResponse.json(
-        { error: 'Hotel credentials not found. Please update hotel settings.' },
-        { status: 400 }
-      );
+    // Load credentials - try DB first, fallback to .env for legacy hotels
+    let clientToken: string;
+    let accessToken: string;
+
+    if (hotel.credentials?.mewsClientToken && hotel.credentials?.mewsAccessToken) {
+      // Decrypt credentials from database
+      console.log(`[hotel-sync] Using encrypted credentials from database`);
+      clientToken = decrypt(hotel.credentials.mewsClientToken);
+      accessToken = decrypt(hotel.credentials.mewsAccessToken);
+    } else {
+      // Fallback to environment variables for legacy hotels
+      console.log(`[hotel-sync] No DB credentials found, using .env fallback for legacy hotel`);
+      clientToken = process.env.MEWS_CLIENT_TOKEN || '';
+      accessToken = process.env.MEWS_ACCESS_TOKEN || '';
+
+      if (!clientToken || !accessToken) {
+        return NextResponse.json(
+          { error: 'Hotel credentials not found. Please update hotel settings or configure MEWS_CLIENT_TOKEN and MEWS_ACCESS_TOKEN in environment.' },
+          { status: 400 }
+        );
+      }
     }
 
-    // Decrypt credentials
-    const clientToken = decrypt(hotel.credentials.mewsClientToken);
-    const accessToken = decrypt(hotel.credentials.mewsAccessToken);
-
     console.log(`[hotel-sync] Starting sync for hotel: ${hotel.name} (${hotelId})`);
-    console.log(`[hotel-sync] Using hotel-specific credentials`);
 
     // Initialize Mews client with hotel-specific credentials
     const mews = new MewsClient({
