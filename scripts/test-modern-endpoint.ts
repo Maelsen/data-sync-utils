@@ -24,9 +24,9 @@ async function testModernEndpoint() {
     });
 
     try {
-        // Fetch a small window (last 3 days - API limit is 100 hours)
+        // Fetch a small window (last 7 days)
         const windowEnd = addHours(new Date(), 24);
-        const windowStart = subDays(windowEnd, 3);
+        const windowStart = subDays(windowEnd, 7);
 
         console.log(`Fetching reservations from ${windowStart.toISOString()} to ${windowEnd.toISOString()}...\n`);
 

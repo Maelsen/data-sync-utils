@@ -74,8 +74,7 @@ async function debugSync() {
     if (treeItems.length > 0) {
         console.log('Recent Tree Items:');
         treeItems.slice(0, 5).forEach((item: any) => {
-            console.log(`  - ${item.CreatedUtc || item.ConsumptionUtc}: Count=${item.Count} @ ${item.Amount?.Value || 0} ${item.Amount?.Currency || 'USD'} (State: ${item.State})`);
-            console.log(`    Full Item:`, JSON.stringify(item, null, 2));
+            console.log(`  - ${item.CreatedUtc || item.ConsumptionUtc}: ${item.Count} @ ${item.Amount?.Value || 0} ${item.Amount?.Currency || 'USD'} (State: ${item.State})`);
         });
     }
 

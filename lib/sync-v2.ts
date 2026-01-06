@@ -17,24 +17,6 @@ function toDate(value: any) {
     return d && !Number.isNaN(d.getTime()) ? d : new Date();
 }
 
-function extractQuantity(item: any): number {
-    // Try Count field first (older API)
-    if (item.Count !== undefined && item.Count !== null) {
-        return toNumber(item.Count, 1);
-    }
-
-    // Try extracting from Name field (newer API format: "4 × CLICK_A_TREE")
-    if (item.Name && typeof item.Name === 'string') {
-        const match = item.Name.match(/^(\d+)\s*×/);
-        if (match) {
-            return toNumber(match[1], 1);
-        }
-    }
-
-    // Fallback to 1
-    return 1;
-}
-
 export async function syncTreeOrdersV2() {
     console.log('[sync] start');
     console.log(`[sync] client token: ${CLIENT_TOKEN.slice(0, 8)}...`);
@@ -125,7 +107,7 @@ export async function syncTreeOrdersV2() {
     const treeLines = [
         ...treeItems.map((item: any) => ({
             mewsId: item.Id,
-            quantity: extractQuantity(item),
+            quantity: toNumber(item.Count, 1),
             amount: toNumber(item.Amount?.Value ?? item.AmountBeforeTaxes?.Value, 0),
             currency: item.Amount?.Currency || item.AmountBeforeTaxes?.Currency || 'EUR',
             bookedAt: toDate(item.ConsumptionUtc || item.CreatedUtc),
@@ -134,7 +116,7 @@ export async function syncTreeOrdersV2() {
         })),
         ...treeOrderItems.map((item: any) => ({
             mewsId: item.Id,
-            quantity: extractQuantity(item),
+            quantity: toNumber(item.Count, 1),
             amount: toNumber(item.Amount?.Value ?? item.TotalPrice?.Value, 0),
             currency: item.Amount?.Currency || item.TotalPrice?.Currency || 'EUR',
             bookedAt: toDate(item.CreatedUtc),
@@ -143,7 +125,7 @@ export async function syncTreeOrdersV2() {
         })),
         ...treeAssignments.map((item: any) => ({
             mewsId: item.Id,
-            quantity: extractQuantity(item),
+            quantity: toNumber(item.Count, 1),
             amount: toNumber(item.Amount?.Value ?? item.Price?.Value, 0),
             currency: item.Amount?.Currency || item.Price?.Currency || 'EUR',
             bookedAt: toDate(item.StartUtc || item.CreatedUtc),
