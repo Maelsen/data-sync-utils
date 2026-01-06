@@ -214,14 +214,20 @@ export async function syncTreeOrdersV3() {
     console.log(`[sync-v3] Found ${treeOrderItems.length} tree order items`);
 
     // STEP 5: Convert to treeLines format
-    const treeLines = treeOrderItems.map((item: any) => ({
-        mewsId: item.Id,
-        quantity: toNumber(item.UnitCount, 1),
-        amount: toNumber(item.UnitAmount?.GrossValue, 0),
-        currency: item.UnitAmount?.Currency || 'EUR',
-        bookedAt: toDate(item.CreatedUtc),
-        state: item.AccountingState || 'Unknown'
-    }));
+    const treeLines = treeOrderItems.map((item: any) => {
+        const unitPrice = toNumber(item.UnitAmount?.GrossValue, 0);
+        const quantity = toNumber(item.UnitCount, 1);
+        const totalPrice = unitPrice * quantity; // CRITICAL: Calculate total price
+
+        return {
+            mewsId: item.Id,
+            quantity: quantity,
+            amount: totalPrice, // Store TOTAL price, not unit price
+            currency: item.UnitAmount?.Currency || 'EUR',
+            bookedAt: toDate(item.CreatedUtc),
+            state: item.AccountingState || 'Unknown'
+        };
+    });
 
     console.log(`[sync-v3] STEP 4: Database operations...`);
     console.log(`[sync-v3] Tree lines total: ${treeLines.length}`);

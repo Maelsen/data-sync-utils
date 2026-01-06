@@ -246,14 +246,20 @@ export async function GET(
     console.log(`[hotel-sync] Found ${treeOrderItems.length} tree order items`);
 
     // STEP 5: Convert to treeLines format
-    const treeLines = treeOrderItems.map((item: any) => ({
-      mewsId: item.Id,
-      quantity: toNumber(item.UnitCount, 1),
-      amount: toNumber(item.UnitAmount?.GrossValue, 0),
-      currency: item.UnitAmount?.Currency || 'EUR',
-      bookedAt: toDate(item.CreatedUtc),
-      state: item.State || 'Unknown'
-    }));
+    const treeLines = treeOrderItems.map((item: any) => {
+      const unitPrice = toNumber(item.UnitAmount?.GrossValue, 0);
+      const quantity = toNumber(item.UnitCount, 1);
+      const totalPrice = unitPrice * quantity; // CRITICAL: Calculate total price
+
+      return {
+        mewsId: item.Id,
+        quantity: quantity,
+        amount: totalPrice, // Store TOTAL price, not unit price
+        currency: item.UnitAmount?.Currency || 'EUR',
+        bookedAt: toDate(item.CreatedUtc),
+        state: item.AccountingState || 'Unknown'
+      };
+    });
 
     console.log(`[hotel-sync] Tree lines total: ${treeLines.length}`);
 
