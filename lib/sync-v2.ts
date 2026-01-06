@@ -61,8 +61,6 @@ export async function syncTreeOrdersV2() {
                 enterprise = data.Enterprise;
             }
 
-            const hasData = (data.Reservations && data.Reservations.length > 0);
-
             (data.Items || []).forEach((i: any) => allItems.push(i));
             (data.OrderItems || []).forEach((i: any) => allOrderItems.push(i));
             (data.ProductAssignments || []).forEach((p: any) => allAssignments.push(p));
@@ -71,18 +69,15 @@ export async function syncTreeOrdersV2() {
             pageCursor = data.Cursor;
             pageCount++;
 
-            // Stop pagination if: no data returned, cursor is empty, or max pages reached
-            if (!hasData) {
-                console.log(`[sync]   no more data, stopping pagination`);
+            // Stop pagination if cursor is null/undefined/empty - this is the reliable signal from Mews API
+            if (!pageCursor || pageCursor.trim() === '') {
+                console.log(`[sync]   no more pages (cursor empty)`);
                 pageCursor = undefined;
-            } else if (!pageCursor || pageCursor.trim() === '') {
+            } else if (pageCount >= MAX_PAGES) {
+                console.warn(`[sync] WARNING: Reached maximum page limit (${MAX_PAGES}), stopping pagination`);
                 pageCursor = undefined;
             } else {
                 console.log(`[sync]   cursor -> next page (${pageCount}/${MAX_PAGES})`);
-                if (pageCount >= MAX_PAGES) {
-                    console.warn(`[sync] WARNING: Reached maximum page limit (${MAX_PAGES}), stopping pagination`);
-                    pageCursor = undefined;
-                }
             }
         } while (pageCursor);
 

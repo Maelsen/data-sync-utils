@@ -33,29 +33,24 @@ export class MewsClient {
 
     async getReservations(startUtc: string, endUtc: string, cursor?: string) {
         // https://mews-systems.gitbook.io/connector-api/operations/reservations#get-all-reservations-ver-2023-06-06
-        const basePayload = {
-            Extent: {
-                Products: true,
-                Items: true, // posted charges
-                ProductAssignments: true, // pre-stay upsells
-                Orders: true,
-                OrderItems: true,
-                Services: true,
-                Customers: true
-            },
-            Limitation: { Count: 1000 },
-        };
+        // Version 2023-06-06 does NOT support Extent or TimeFilter parameters
+        // Instead it uses UpdatedUtc as an object and Cursor goes inside Limitation
 
-        const payload = cursor
+        const payload: any = cursor
             ? {
-                ...basePayload,
-                Cursor: cursor
+                // Pagination request: only Limitation with Cursor
+                Limitation: {
+                    Count: 1000,
+                    Cursor: cursor
+                }
             }
             : {
-                ...basePayload,
-                StartUtc: startUtc,
-                EndUtc: endUtc,
-                TimeFilter: 'Updated',
+                // Initial request: UpdatedUtc interval + Limitation
+                UpdatedUtc: {
+                    StartUtc: startUtc,
+                    EndUtc: endUtc
+                },
+                Limitation: { Count: 1000 }
             };
 
         return this.request('reservations/getAll/2023-06-06', payload);
