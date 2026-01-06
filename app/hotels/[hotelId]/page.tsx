@@ -40,8 +40,8 @@ export default function HotelDashboard({
   const handleSync = async () => {
     try {
       setSyncing(true);
-      // For Mews hotels, trigger the sync
-      await axios.get('/api/sync');
+      // Use hotel-specific sync endpoint with encrypted credentials
+      await axios.get(`/api/hotels/${hotelId}/sync`);
       // Refresh the data after sync - no alerts, just smooth update
       await fetchHotelData();
     } catch (err: any) {
