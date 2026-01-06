@@ -200,10 +200,10 @@ export async function syncTreeOrdersV3() {
             return false;
         }
 
-        // Exclude canceled/closed orders
-        // AccountingState values: Open, Closed, Canceled
-        if (oi.AccountingState === 'Canceled' || oi.AccountingState === 'Closed') {
-            console.log(`[sync-v3] Skipping ${oi.AccountingState} order: ${oi.Id}`);
+        // Exclude canceled orders (check CanceledUtc field)
+        // If CanceledUtc is set, the order was canceled
+        if (oi.CanceledUtc) {
+            console.log(`[sync-v3] Skipping canceled order: ${oi.Id} (canceled at ${oi.CanceledUtc})`);
             return false;
         }
 

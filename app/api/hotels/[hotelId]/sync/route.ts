@@ -232,10 +232,10 @@ export async function GET(
         return false;
       }
 
-      // Exclude canceled/closed orders
-      // AccountingState values: Open, Closed, Canceled
-      if (oi.AccountingState === 'Canceled' || oi.AccountingState === 'Closed') {
-        console.log(`[hotel-sync] Skipping ${oi.AccountingState} order: ${oi.Id}`);
+      // Exclude canceled orders (check CanceledUtc field)
+      // If CanceledUtc is set, the order was canceled
+      if (oi.CanceledUtc) {
+        console.log(`[hotel-sync] Skipping canceled order: ${oi.Id} (canceled at ${oi.CanceledUtc})`);
         return false;
       }
 
