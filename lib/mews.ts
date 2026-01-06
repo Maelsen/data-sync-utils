@@ -32,9 +32,12 @@ export class MewsClient {
     }
 
     async getReservations(startUtc: string, endUtc: string, cursor?: string) {
-        // https://mews-systems.gitbook.io/connector-api/operations/reservations#get-all-reservations
+        // https://mews-systems.gitbook.io/connector-api/operations/reservations#get-all-reservations-ver-2023-06-06
         const payload = cursor
-            ? { Cursor: cursor }
+            ? {
+                Limitation: { Count: 1000 },
+                Cursor: cursor
+            }
             : {
                 StartUtc: startUtc,
                 EndUtc: endUtc,
@@ -48,9 +51,10 @@ export class MewsClient {
                     Services: true,
                     Customers: true
                 },
+                Limitation: { Count: 1000 },
             };
 
-        return this.request('reservations/getAll', payload);
+        return this.request('reservations/getAll/2023-06-06', payload);
     }
 
     async getConfiguration() {

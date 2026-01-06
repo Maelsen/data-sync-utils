@@ -201,7 +201,7 @@ class MewsAPIClient {
     }
 
     async getReservations(startUtc: string, endUtc: string) {
-        return this.call('/api/connector/v1/reservations/getAll', 'POST', {
+        return this.call('/api/connector/v1/reservations/getAll/2023-06-06', 'POST', {
             ClientToken: this.clientToken,
             AccessToken: this.accessToken,
             TimeFilter: {
