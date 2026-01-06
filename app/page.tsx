@@ -56,7 +56,7 @@ export default function Dashboard() {
         </div>
     );
 
-    // BERECHNUNG: Summiere die tatsächlichen Beträge aller Orders
+    // BERUNG: Summiere die tatsächlichen Beträge aller Orders
     // Wir nehmen an, dass 'stats.recentOrders' oder eine ähnliche Liste alle relevanten Daten enthält.
     // Falls das Backend nur 'totalTrees' liefert, müssen wir uns auf die Orders stützen.
     // Für die Anzeige summieren wir hier die Beträge der 'recentOrders' oder nutzen einen Mock-Wert, 
