@@ -50,7 +50,7 @@ export class MewsClient {
                 },
             };
 
-        return this.request('reservations/getAll', payload);
+        return this.request('reservations/getAll/2023-06-06', payload);
     }
 
     async getConfiguration() {
