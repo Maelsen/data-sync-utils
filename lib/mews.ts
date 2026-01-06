@@ -56,6 +56,62 @@ export class MewsClient {
         return this.request('reservations/getAll/2023-06-06', payload);
     }
 
+    /**
+     * Get all products
+     * https://mews-systems.gitbook.io/connector-api/operations/products#get-all-products
+     *
+     * CRITICAL: IncludeDefault must be true to get ALL products (default + extra products)
+     */
+    async getProducts(serviceIds: string[], cursor?: string) {
+        const payload: any = cursor
+            ? {
+                // Pagination request: only Limitation with Cursor
+                Limitation: {
+                    Count: 1000,
+                    Cursor: cursor
+                }
+            }
+            : {
+                // Initial request: ServiceIds + IncludeDefault + Limitation
+                ServiceIds: serviceIds,
+                IncludeDefault: true, // ESSENTIAL! Without this, default products are excluded
+                Limitation: { Count: 1000 }
+            };
+
+        return this.request('products/getAll', payload);
+    }
+
+    /**
+     * Get all order items (replaces deprecated Items, OrderItems, ProductAssignments)
+     * https://mews-systems.gitbook.io/connector-api/operations/orderitems#get-all-order-items
+     *
+     * NOTE: Using unversioned endpoint for compatibility with demo environment
+     * IMPORTANT: UpdatedUtc must be included in ALL requests, even with cursor
+     */
+    async getOrderItems(
+        serviceIds: string[],
+        updatedUtc: { StartUtc: string; EndUtc: string },
+        cursor?: string
+    ) {
+        const payload: any = {
+            // UpdatedUtc is required in ALL requests (initial + pagination)
+            UpdatedUtc: {
+                StartUtc: updatedUtc.StartUtc,
+                EndUtc: updatedUtc.EndUtc
+            },
+            Limitation: cursor
+                ? { Count: 1000, Cursor: cursor }
+                : { Count: 1000 }
+        };
+
+        // ServiceIds is optional - omit to get all services
+        // if (serviceIds.length > 0) {
+        //     payload.ServiceIds = serviceIds;
+        // }
+
+        return this.request('orderitems/getAll', payload);
+    }
+
     async getConfiguration() {
         // Useful to get services/products IDs if needed
         return this.request('configuration/get');

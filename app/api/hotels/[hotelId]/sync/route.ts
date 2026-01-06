@@ -23,22 +23,64 @@ function toDate(value: any) {
   return d && !Number.isNaN(d.getTime()) ? d : new Date();
 }
 
-function extractQuantity(item: any): number {
-  // Try Count field first (older API)
-  if (item.Count !== undefined && item.Count !== null) {
-    return toNumber(item.Count, 1);
+/**
+ * Fetch all products with pagination
+ */
+async function fetchAllProducts(mews: MewsClient): Promise<any[]> {
+  console.log('[hotel-sync] Fetching products...');
+
+  // Get configuration to extract serviceIds
+  const config = await mews.getConfiguration();
+  const serviceIds = config.Services?.map((s: any) => s.Id) || [];
+
+  if (serviceIds.length === 0) {
+    console.warn('[hotel-sync] No service IDs found in configuration');
+    return [];
   }
 
-  // Try extracting from Name field (newer API format: "4 × CLICK_A_TREE")
-  if (item.Name && typeof item.Name === 'string') {
-    const match = item.Name.match(/^(\d+)\s*×/);
-    if (match) {
-      return toNumber(match[1], 1);
+  const products: any[] = [];
+  let cursor: string | undefined;
+  let pageCount = 0;
+
+  do {
+    const data = await mews.getProducts(serviceIds, cursor);
+    (data.Products || []).forEach((p: any) => products.push(p));
+    cursor = data.Cursor;
+    pageCount++;
+
+    if (!cursor || cursor.trim() === '') {
+      break;
     }
+
+    console.log(`[hotel-sync] Products page ${pageCount} (cursor: ${cursor.slice(0, 8)}...)`);
+  } while (cursor);
+
+  console.log(`[hotel-sync] Fetched ${products.length} products total`);
+  return products;
+}
+
+/**
+ * Filter products to find tree products by ID or name
+ */
+function filterTreeProducts(products: any[]): string[] {
+  const targetProductId = process.env.TREE_PRODUCT_ID || process.env.TREE_SERVICE_ID;
+  const TREE_NAME = (process.env.TREE_PRODUCT_NAME || 'tree').toLowerCase();
+
+  let treeProducts: any[] = [];
+
+  if (targetProductId) {
+    console.log(`[hotel-sync] Filtering by Product ID: ${targetProductId}`);
+    treeProducts = products.filter((p: any) => p.Id === targetProductId);
+  } else {
+    console.log(`[hotel-sync] Filtering by name contains: '${TREE_NAME}'`);
+    treeProducts = products.filter((p: any) =>
+      (p.Name || '').toLowerCase().includes(TREE_NAME)
+    );
   }
 
-  // Fallback to 1
-  return 1;
+  console.log(`[hotel-sync] Found ${treeProducts.length} tree product(s): ${treeProducts.map(p => p.Name).join(', ')}`);
+
+  return treeProducts.map((p: any) => p.Id);
 }
 
 /**
@@ -92,85 +134,30 @@ export async function GET(
       clientName: 'Click A Tree Integration 1.0.0',
     });
 
-    const lookbackDays = 30;
-    const windowHours = 96; // API limit is 100h
+    // STEP 1: Fetch configuration and products (ONCE per sync)
+    console.log('[hotel-sync] Fetching configuration and products...');
+    const [configData, allProducts] = await Promise.all([
+      mews.getConfiguration(),
+      fetchAllProducts(mews)
+    ]);
 
-    const windowEnd = addHours(new Date(), 24);
-    let cursor = subDays(windowEnd, lookbackDays);
+    const enterprise = configData.Enterprise || { Id: hotel.mewsId, Name: hotel.name };
+    console.log(`[hotel-sync] Enterprise: ${enterprise.Name} (${enterprise.Id})`);
 
-    const allItems: any[] = [];
-    const allOrderItems: any[] = [];
-    const allAssignments: any[] = [];
-    const productMap = new Map<string, any>();
-    let enterprise: any = null;
+    // Get ServiceIds from configuration
+    const serviceIds = configData.Services?.map((s: any) => s.Id) || [];
+    console.log(`[hotel-sync] Service IDs: ${serviceIds.join(', ')}`);
 
-    // Fetch data from Mews
-    while (cursor < windowEnd) {
-      const chunkStart = cursor;
-      const chunkEndDate = addHours(cursor, windowHours);
-      const chunkEnd = chunkEndDate > windowEnd ? windowEnd : chunkEndDate;
-
-      console.log(`[hotel-sync] Fetching ${chunkStart.toISOString()} -> ${chunkEnd.toISOString()}`);
-
-      let pageCursor: string | undefined;
-      let pageCount = 0;
-      const MAX_PAGES = 100; // Safety limit to prevent infinite loops
-      do {
-        const data = await mews.getReservations(
-          chunkStart.toISOString(),
-          chunkEnd.toISOString(),
-          pageCursor
-        );
-
-        if (!enterprise && data.Enterprise) {
-          enterprise = data.Enterprise;
-        }
-
-        (data.Items || []).forEach((i: any) => allItems.push(i));
-        (data.OrderItems || []).forEach((i: any) => allOrderItems.push(i));
-        (data.ProductAssignments || []).forEach((p: any) => allAssignments.push(p));
-        (data.Products || []).forEach((p: any) => productMap.set(p.Id, p));
-
-        pageCursor = data.Cursor;
-        pageCount++;
-
-        // Stop pagination if cursor is null/undefined/empty - this is the reliable signal from Mews API
-        if (!pageCursor || pageCursor.trim() === '') {
-          console.log(`[hotel-sync] No more pages (cursor empty)`);
-          pageCursor = undefined;
-        } else if (pageCount >= MAX_PAGES) {
-          console.warn(`[hotel-sync] WARNING: Reached maximum page limit (${MAX_PAGES}), stopping pagination`);
-          pageCursor = undefined;
-        } else {
-          console.log(`[hotel-sync] Fetching next page (${pageCount}/${MAX_PAGES})...`);
-        }
-      } while (pageCursor);
-
-      cursor = chunkEnd;
-    }
-
-    const products = Array.from(productMap.values());
-    console.log(
-      `[hotel-sync] Collected ${allItems.length} Items, ${allOrderItems.length} OrderItems, ${allAssignments.length} ProductAssignments, ${products.length} products`
-    );
-
-    // Filter for tree products
-    const TREE_NAME = (process.env.TREE_PRODUCT_NAME || 'tree').toLowerCase();
-    const targetProductId = process.env.TREE_PRODUCT_ID || process.env.TREE_SERVICE_ID;
-
-    let treeProducts: any[] = [];
-    if (targetProductId) {
-      console.log(`[hotel-sync] Filtering by Product ID: ${targetProductId}`);
-      treeProducts = products.filter((p: any) => p.Id === targetProductId);
-    } else {
-      console.log(`[hotel-sync] Filtering by name contains: '${TREE_NAME}'`);
-      treeProducts = products.filter((p: any) =>
-        (p.Name || '').toLowerCase().includes(TREE_NAME)
+    if (serviceIds.length === 0) {
+      console.error('[hotel-sync] No service IDs found in configuration');
+      return NextResponse.json(
+        { error: 'No service IDs found in hotel configuration' },
+        { status: 500 }
       );
     }
 
-    const treeProductIds = treeProducts.map((p: any) => p.Id);
-    console.log(`[hotel-sync] Found ${treeProductIds.length} tree product(s)`);
+    // STEP 2: Filter for tree products
+    const treeProductIds = filterTreeProducts(allProducts);
 
     if (treeProductIds.length === 0) {
       console.log('[hotel-sync] No tree products found - sync complete (no changes)');
@@ -181,55 +168,145 @@ export async function GET(
       });
     }
 
-    // Find tree assignments
-    const treeAssignments = allAssignments.filter((a: any) =>
-      treeProductIds.includes(a.ProductId)
-    );
-    const treeItemIds = new Set(treeAssignments.map((a: any) => a.ItemId));
-    const treeItems = allItems.filter((i: any) => treeItemIds.has(i.Id));
+    // STEP 3: Paginate through order items in time windows
+    console.log('[hotel-sync] Fetching order items...');
+    const lookbackDays = 30;
+    const windowHours = 96; // API limit
+    const windowEnd = addHours(new Date(), 24);
+    let cursor = subDays(windowEnd, lookbackDays);
 
-    console.log(`[hotel-sync] Found ${treeItems.length} tree item(s)`);
+    const allOrderItems: any[] = [];
 
-    // Process each tree item
-    let syncedCount = 0;
-    for (const item of treeItems) {
-      const itemId = `mews-${item.Id}`;
+    while (cursor < windowEnd) {
+      const chunkStart = cursor;
+      const chunkEndDate = addHours(cursor, windowHours);
+      const chunkEnd = chunkEndDate > windowEnd ? windowEnd : chunkEndDate;
 
-      // Check if already exists
-      const existing = await prisma.treeOrder.findUnique({
-        where: { mewsId: itemId },
-      });
+      console.log(`[hotel-sync] Fetching ${chunkStart.toISOString()} -> ${chunkEnd.toISOString()}`);
 
-      if (existing) {
-        console.log(`[hotel-sync] Order ${itemId} already exists, skipping`);
-        continue;
+      // Paginate orderitems/getAll for this time window
+      let pageCursor: string | undefined;
+      let pageCount = 0;
+      const MAX_PAGES = 100;
+
+      do {
+        const data = await mews.getOrderItems(
+          serviceIds,
+          { StartUtc: chunkStart.toISOString(), EndUtc: chunkEnd.toISOString() },
+          pageCursor
+        );
+
+        (data.OrderItems || []).forEach((oi: any) => allOrderItems.push(oi));
+        pageCursor = data.Cursor;
+        pageCount++;
+
+        if (!pageCursor || pageCursor.trim() === '') {
+          console.log(`[hotel-sync]   No more pages (fetched ${pageCount} pages)`);
+          break;
+        }
+
+        if (pageCount >= MAX_PAGES) {
+          console.warn(`[hotel-sync]   WARNING: Max pages (${MAX_PAGES}) reached, stopping pagination`);
+          break;
+        }
+
+        console.log(`[hotel-sync]   Page ${pageCount}/${MAX_PAGES}`);
+      } while (pageCursor);
+
+      cursor = chunkEnd;
+    }
+
+    console.log(`[hotel-sync] Collected ${allOrderItems.length} total order items`);
+
+    // STEP 4: Filter for tree order items
+    console.log('[hotel-sync] Filtering tree order items...');
+    const treeOrderItems = allOrderItems.filter((oi: any) => {
+      // Must be ProductOrder type
+      if (oi.Type !== 'ProductOrder') {
+        return false;
       }
 
-      const orderItems = allOrderItems.filter((oi: any) => oi.ItemId === item.Id);
-      const amount = orderItems.reduce((sum, oi) => {
-        const unitAmount = toNumber(oi.UnitAmount?.GrossValue, 0);
-        const count = toNumber(oi.Count, 1);
-        return sum + unitAmount * count;
-      }, 0);
+      // Must have ProductId in nested Data.Product
+      if (!oi.Data?.Product?.ProductId) {
+        console.warn(`[hotel-sync] OrderItem ${oi.Id} missing ProductId`);
+        return false;
+      }
 
-      const currency = orderItems[0]?.UnitAmount?.Currency || 'EUR';
+      // Must match tree product IDs
+      return treeProductIds.includes(oi.Data.Product.ProductId);
+    });
 
-      // Create order for this hotel
-      await prisma.treeOrder.create({
-        data: {
-          mewsId: itemId,
+    console.log(`[hotel-sync] Found ${treeOrderItems.length} tree order items`);
+
+    // STEP 5: Convert to treeLines format
+    const treeLines = treeOrderItems.map((item: any) => ({
+      mewsId: item.Id,
+      quantity: toNumber(item.UnitCount, 1),
+      amount: toNumber(item.UnitAmount?.GrossValue, 0),
+      currency: item.UnitAmount?.Currency || 'EUR',
+      bookedAt: toDate(item.CreatedUtc),
+      state: item.State || 'Unknown'
+    }));
+
+    console.log(`[hotel-sync] Tree lines total: ${treeLines.length}`);
+
+    if (treeLines.length === 0) {
+      console.log('[hotel-sync] No tree orders found in sync window');
+      return NextResponse.json({
+        success: true,
+        message: 'No tree orders found in sync window',
+        synced: 0,
+      });
+    }
+
+    // STEP 6: Delete canceled orders (not in current sync window)
+    const syncWindowStart = subDays(new Date(), 30);
+    const existingOrders = await prisma.treeOrder.findMany({
+      where: { hotelId: hotel.id },
+      select: { mewsId: true, id: true, bookedAt: true }
+    });
+
+    const currentMewsIds = new Set(treeLines.map((l: any) => l.mewsId));
+    const ordersToDelete = existingOrders.filter((order) =>
+      !currentMewsIds.has(order.mewsId) &&
+      order.bookedAt >= syncWindowStart
+    );
+
+    console.log(`[hotel-sync] Existing orders in DB: ${existingOrders.length}`);
+    console.log(`[hotel-sync] Current orders from Mews: ${currentMewsIds.size}`);
+    console.log(`[hotel-sync] Orders to delete (canceled, within window): ${ordersToDelete.length}`);
+
+    if (ordersToDelete.length > 0) {
+      const deletedIds = ordersToDelete.map((o) => o.mewsId);
+      await prisma.treeOrder.deleteMany({
+        where: { mewsId: { in: deletedIds } }
+      });
+      console.log(`[hotel-sync] Deleted ${ordersToDelete.length} canceled orders`);
+    }
+
+    // STEP 7: Upsert tree orders
+    let syncedCount = 0;
+    for (const line of treeLines) {
+      await prisma.treeOrder.upsert({
+        where: { mewsId: line.mewsId },
+        update: {
+          hotelId: hotel.id,
+          quantity: line.quantity,
+          amount: line.amount,
+          currency: line.currency,
+          bookedAt: line.bookedAt
+        },
+        create: {
+          mewsId: line.mewsId,
           hotelId: hotel.id,
           pmsType: 'mews',
-          quantity: 1, // Will be recalculated based on amount / 5.90
-          amount,
-          currency,
-          bookedAt: toDate(item.StartUtc),
-          createdAt: new Date(), // German timestamp
-        },
+          quantity: line.quantity,
+          amount: line.amount,
+          currency: line.currency,
+          bookedAt: line.bookedAt
+        }
       });
-
       syncedCount++;
-      console.log(`[hotel-sync] Created order ${itemId} - ${amount} ${currency}`);
     }
 
     console.log(`[hotel-sync] Sync complete - ${syncedCount} new order(s)`);
