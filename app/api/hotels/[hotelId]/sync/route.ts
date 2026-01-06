@@ -233,9 +233,9 @@ export async function GET(
       }
 
       // Exclude canceled/closed orders
-      // Possible states: Pending, Confirmed, Closed, Canceled
-      if (oi.State === 'Canceled' || oi.State === 'Closed') {
-        console.log(`[hotel-sync] Skipping ${oi.State} order: ${oi.Id}`);
+      // AccountingState values: Open, Closed, Canceled
+      if (oi.AccountingState === 'Canceled' || oi.AccountingState === 'Closed') {
+        console.log(`[hotel-sync] Skipping ${oi.AccountingState} order: ${oi.Id}`);
         return false;
       }
 

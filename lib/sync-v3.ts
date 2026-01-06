@@ -201,9 +201,9 @@ export async function syncTreeOrdersV3() {
         }
 
         // Exclude canceled/closed orders
-        // Possible states: Pending, Confirmed, Closed, Canceled
-        if (oi.State === 'Canceled' || oi.State === 'Closed') {
-            console.log(`[sync-v3] Skipping ${oi.State} order: ${oi.Id}`);
+        // AccountingState values: Open, Closed, Canceled
+        if (oi.AccountingState === 'Canceled' || oi.AccountingState === 'Closed') {
+            console.log(`[sync-v3] Skipping ${oi.AccountingState} order: ${oi.Id}`);
             return false;
         }
 
@@ -220,7 +220,7 @@ export async function syncTreeOrdersV3() {
         amount: toNumber(item.UnitAmount?.GrossValue, 0),
         currency: item.UnitAmount?.Currency || 'EUR',
         bookedAt: toDate(item.CreatedUtc),
-        state: item.State || 'Unknown'
+        state: item.AccountingState || 'Unknown'
     }));
 
     console.log(`[sync-v3] STEP 4: Database operations...`);
