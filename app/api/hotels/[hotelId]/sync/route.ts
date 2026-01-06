@@ -113,6 +113,8 @@ export async function GET(
       console.log(`[hotel-sync] Fetching ${chunkStart.toISOString()} -> ${chunkEnd.toISOString()}`);
 
       let pageCursor: string | undefined;
+      let pageCount = 0;
+      const MAX_PAGES = 100; // Safety limit to prevent infinite loops
       do {
         const data = await mews.getReservations(
           chunkStart.toISOString(),
@@ -130,8 +132,17 @@ export async function GET(
         (data.Products || []).forEach((p: any) => productMap.set(p.Id, p));
 
         pageCursor = data.Cursor;
-        if (pageCursor) {
-          console.log('[hotel-sync] Fetching next page...');
+        pageCount++;
+
+        // Check for empty string as well - Mews API may return "" instead of null
+        if (pageCursor && pageCursor.trim() !== '') {
+          console.log(`[hotel-sync] Fetching next page (${pageCount}/${MAX_PAGES})...`);
+          if (pageCount >= MAX_PAGES) {
+            console.warn(`[hotel-sync] WARNING: Reached maximum page limit (${MAX_PAGES}), stopping pagination`);
+            pageCursor = undefined;
+          }
+        } else {
+          pageCursor = undefined; // Ensure loop terminates
         }
       } while (pageCursor);
 
