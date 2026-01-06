@@ -23,6 +23,24 @@ function toDate(value: any) {
   return d && !Number.isNaN(d.getTime()) ? d : new Date();
 }
 
+function extractQuantity(item: any): number {
+  // Try Count field first (older API)
+  if (item.Count !== undefined && item.Count !== null) {
+    return toNumber(item.Count, 1);
+  }
+
+  // Try extracting from Name field (newer API format: "4 × CLICK_A_TREE")
+  if (item.Name && typeof item.Name === 'string') {
+    const match = item.Name.match(/^(\d+)\s*×/);
+    if (match) {
+      return toNumber(match[1], 1);
+    }
+  }
+
+  // Fallback to 1
+  return 1;
+}
+
 /**
  * GET /api/hotels/[hotelId]/sync
  * Sync orders for a specific Mews hotel using its credentials
@@ -152,55 +170,105 @@ export async function GET(
       });
     }
 
-    // Find tree assignments
-    const treeAssignments = allAssignments.filter((a: any) =>
-      treeProductIds.includes(a.ProductId)
+    // Filter tree items directly (modern approach matching sync-v2.ts)
+    const treeItems = allItems.filter((item: any) =>
+      treeProductIds.includes(item.ProductId)
     );
-    const treeItemIds = new Set(treeAssignments.map((a: any) => a.ItemId));
-    const treeItems = allItems.filter((i: any) => treeItemIds.has(i.Id));
+    const treeOrderItems = allOrderItems.filter((item: any) =>
+      treeProductIds.includes(item.ProductId)
+    );
+    const treeAssignments = allAssignments.filter((item: any) =>
+      treeProductIds.includes(item.ProductId)
+    );
 
-    console.log(`[hotel-sync] Found ${treeItems.length} tree item(s)`);
+    const treeLines = [
+      ...treeItems.map((item: any) => ({
+        mewsId: item.Id,
+        quantity: extractQuantity(item),
+        amount: toNumber(item.Amount?.Value ?? item.AmountBeforeTaxes?.Value, 0),
+        currency: item.Amount?.Currency || item.AmountBeforeTaxes?.Currency || 'EUR',
+        bookedAt: toDate(item.ConsumptionUtc || item.CreatedUtc),
+        state: item.State,
+        type: 'Item',
+      })),
+      ...treeOrderItems.map((item: any) => ({
+        mewsId: item.Id,
+        quantity: extractQuantity(item),
+        amount: toNumber(item.Amount?.Value ?? item.TotalPrice?.Value, 0),
+        currency: item.Amount?.Currency || item.TotalPrice?.Currency || 'EUR',
+        bookedAt: toDate(item.CreatedUtc),
+        state: item.State,
+        type: 'OrderItem',
+      })),
+      ...treeAssignments.map((item: any) => ({
+        mewsId: item.Id,
+        quantity: extractQuantity(item),
+        amount: toNumber(item.Amount?.Value ?? item.Price?.Value, 0),
+        currency: item.Amount?.Currency || item.Price?.Currency || 'EUR',
+        bookedAt: toDate(item.StartUtc || item.CreatedUtc),
+        state: item.State,
+        type: 'ProductAssignment',
+      })),
+    ];
 
-    // Process each tree item
-    let syncedCount = 0;
-    for (const item of treeItems) {
-      const itemId = `mews-${item.Id}`;
+    console.log(`[hotel-sync] Found ${treeLines.length} tree line(s)`);
 
-      // Check if already exists
-      const existing = await prisma.treeOrder.findUnique({
-        where: { mewsId: itemId },
+    if (treeLines.length === 0) {
+      console.log('[hotel-sync] No tree orders found - sync complete');
+      return NextResponse.json({
+        success: true,
+        message: 'No tree orders found in window',
+        synced: 0,
       });
+    }
 
-      if (existing) {
-        console.log(`[hotel-sync] Order ${itemId} already exists, skipping`);
-        continue;
-      }
+    // Get existing orders from database
+    const syncWindowStart = subDays(new Date(), 30);
+    const existingOrders = await prisma.treeOrder.findMany({
+      where: { hotelId: hotel.id },
+      select: { mewsId: true, id: true, bookedAt: true },
+    });
 
-      const orderItems = allOrderItems.filter((oi: any) => oi.ItemId === item.Id);
-      const amount = orderItems.reduce((sum, oi) => {
-        const unitAmount = toNumber(oi.UnitAmount?.GrossValue, 0);
-        const count = toNumber(oi.Count, 1);
-        return sum + unitAmount * count;
-      }, 0);
+    // Find orders to delete (no longer in Mews, within sync window)
+    const currentMewsIds = new Set(treeLines.map((line: any) => line.mewsId));
+    const ordersToDelete = existingOrders.filter(
+      (order) =>
+        !currentMewsIds.has(order.mewsId) && order.bookedAt >= syncWindowStart
+    );
 
-      const currency = orderItems[0]?.UnitAmount?.Currency || 'EUR';
+    if (ordersToDelete.length > 0) {
+      const deletedIds = ordersToDelete.map((o) => o.mewsId);
+      await prisma.treeOrder.deleteMany({
+        where: { mewsId: { in: deletedIds } },
+      });
+      console.log(
+        `[hotel-sync] Deleted ${ordersToDelete.length} canceled order(s)`
+      );
+    }
 
-      // Create order for this hotel
-      await prisma.treeOrder.create({
-        data: {
-          mewsId: itemId,
+    // Process tree lines - upsert all
+    let syncedCount = 0;
+    for (const line of treeLines) {
+      await prisma.treeOrder.upsert({
+        where: { mewsId: line.mewsId },
+        update: {
+          hotelId: hotel.id,
+          quantity: line.quantity,
+          amount: line.amount,
+          currency: line.currency,
+          bookedAt: line.bookedAt,
+        },
+        create: {
+          mewsId: line.mewsId,
           hotelId: hotel.id,
           pmsType: 'mews',
-          quantity: 1, // Will be recalculated based on amount / 5.90
-          amount,
-          currency,
-          bookedAt: toDate(item.StartUtc),
-          createdAt: new Date(), // German timestamp
+          quantity: line.quantity,
+          amount: line.amount,
+          currency: line.currency,
+          bookedAt: line.bookedAt,
         },
       });
-
       syncedCount++;
-      console.log(`[hotel-sync] Created order ${itemId} - ${amount} ${currency}`);
     }
 
     console.log(`[hotel-sync] Sync complete - ${syncedCount} new order(s)`);
