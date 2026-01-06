@@ -126,6 +126,8 @@ export async function GET(
           enterprise = data.Enterprise;
         }
 
+        const hasData = (data.Reservations && data.Reservations.length > 0);
+
         (data.Items || []).forEach((i: any) => allItems.push(i));
         (data.OrderItems || []).forEach((i: any) => allOrderItems.push(i));
         (data.ProductAssignments || []).forEach((p: any) => allAssignments.push(p));
@@ -134,15 +136,18 @@ export async function GET(
         pageCursor = data.Cursor;
         pageCount++;
 
-        // Check for empty string as well - Mews API may return "" instead of null
-        if (pageCursor && pageCursor.trim() !== '') {
+        // Stop pagination if: no data returned, cursor is empty, or max pages reached
+        if (!hasData) {
+          console.log(`[hotel-sync] No more data, stopping pagination`);
+          pageCursor = undefined;
+        } else if (!pageCursor || pageCursor.trim() === '') {
+          pageCursor = undefined;
+        } else {
           console.log(`[hotel-sync] Fetching next page (${pageCount}/${MAX_PAGES})...`);
           if (pageCount >= MAX_PAGES) {
             console.warn(`[hotel-sync] WARNING: Reached maximum page limit (${MAX_PAGES}), stopping pagination`);
             pageCursor = undefined;
           }
-        } else {
-          pageCursor = undefined; // Ensure loop terminates
         }
       } while (pageCursor);
 

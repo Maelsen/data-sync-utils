@@ -33,25 +33,29 @@ export class MewsClient {
 
     async getReservations(startUtc: string, endUtc: string, cursor?: string) {
         // https://mews-systems.gitbook.io/connector-api/operations/reservations#get-all-reservations-ver-2023-06-06
+        const basePayload = {
+            Extent: {
+                Products: true,
+                Items: true, // posted charges
+                ProductAssignments: true, // pre-stay upsells
+                Orders: true,
+                OrderItems: true,
+                Services: true,
+                Customers: true
+            },
+            Limitation: { Count: 1000 },
+        };
+
         const payload = cursor
             ? {
-                Limitation: { Count: 1000 },
+                ...basePayload,
                 Cursor: cursor
             }
             : {
+                ...basePayload,
                 StartUtc: startUtc,
                 EndUtc: endUtc,
                 TimeFilter: 'Updated',
-                Extent: {
-                    Products: true,
-                    Items: true, // posted charges
-                    ProductAssignments: true, // pre-stay upsells
-                    Orders: true,
-                    OrderItems: true,
-                    Services: true,
-                    Customers: true
-                },
-                Limitation: { Count: 1000 },
             };
 
         return this.request('reservations/getAll/2023-06-06', payload);
