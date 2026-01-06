@@ -232,6 +232,13 @@ export async function GET(
         return false;
       }
 
+      // Exclude canceled/closed orders
+      // Possible states: Pending, Confirmed, Closed, Canceled
+      if (oi.State === 'Canceled' || oi.State === 'Closed') {
+        console.log(`[hotel-sync] Skipping ${oi.State} order: ${oi.Id}`);
+        return false;
+      }
+
       // Must match tree product IDs
       return treeProductIds.includes(oi.Data.Product.ProductId);
     });
