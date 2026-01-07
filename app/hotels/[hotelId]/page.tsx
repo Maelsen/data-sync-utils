@@ -301,15 +301,17 @@ export default function HotelDashboard({
                     <tr key={order.id} className="border-b last:border-0 hover:bg-gray-50">
                       <td className="py-3">
                         <div className="font-medium text-gray-900">
-                          {new Date(order.bookedAt).toLocaleDateString('de-DE')}
+                          {order.checkInAt
+                            ? new Date(order.checkInAt).toLocaleDateString('de-DE')
+                            : '—'}
                         </div>
                       </td>
                       <td className="py-3">
                         <div className="text-gray-600">
-                          {new Date(order.createdAt).toLocaleDateString('de-DE')}
+                          {new Date(order.bookedAt).toLocaleDateString('de-DE')}
                         </div>
                         <div className="text-xs text-gray-400">
-                          {new Date(order.createdAt).toLocaleTimeString('de-DE', {
+                          {new Date(order.bookedAt).toLocaleTimeString('de-DE', {
                             hour: '2-digit',
                             minute: '2-digit',
                             second: '2-digit'
