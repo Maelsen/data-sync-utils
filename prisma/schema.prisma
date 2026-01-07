@@ -44,10 +44,12 @@ model TreeOrder {
   amount      Float
   currency    String
   createdAt   DateTime @default(now())
-  bookedAt    DateTime // When it was booked in the PMS
-  checkInAt   DateTime? // Guest check-in date (from reservation) - for invoicing
+  bookedAt        DateTime // When it was booked in the PMS
+  checkInAt       DateTime? // Scheduled check-in date (ScheduledStartUtc) - planned arrival
+  actualCheckInAt DateTime? // Actual check-in date (ActualStartUtc) - confirmed arrival, use for invoicing
 
   @@index([hotelId, bookedAt])
+  @@index([actualCheckInAt]) // Index for invoice filtering by confirmed arrivals
   @@index([pmsType, hotelId])
   @@index([checkInAt]) // Index for filtering by check-in date
 }

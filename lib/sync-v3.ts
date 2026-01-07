@@ -233,9 +233,11 @@ export async function syncTreeOrdersV3() {
 
     // STEP 5: Fetch check-in dates from reservations
     // OrderItem.ServiceOrderId = ReservationId
-    // Reservation.ScheduledStartUtc = Check-in date
+    // Reservation.ScheduledStartUtc = Planned check-in date
+    // Reservation.ActualStartUtc = Actual check-in date (guest arrived) - USE FOR INVOICING
     console.log('[sync-v3] STEP 4: Fetching check-in dates from reservations...');
     const checkInDateMap = new Map<string, Date>();
+    const actualCheckInDateMap = new Map<string, Date>(); // NEW: For confirmed arrivals
 
     // Collect unique ServiceOrderIds (= ReservationIds)
     const reservationIds = [...new Set(
@@ -260,11 +262,16 @@ export async function syncTreeOrdersV3() {
                 console.log(`[sync-v3] Got ${reservations.length} reservations`);
 
                 reservations.forEach((res: any) => {
-                    // Use ScheduledStartUtc for check-in date (per Mews docs)
-                    // Fallback to StartUtc if ScheduledStartUtc is not available
-                    const checkInDate = res.ScheduledStartUtc || res.StartUtc;
-                    if (res.Id && checkInDate) {
-                        checkInDateMap.set(res.Id, new Date(checkInDate));
+                    // ScheduledStartUtc = Planned check-in (from booking)
+                    // ActualStartUtc = Actual check-in (guest arrived) - USE FOR INVOICING
+                    const scheduledCheckIn = res.ScheduledStartUtc || res.StartUtc;
+                    const actualCheckIn = res.ActualStartUtc;
+
+                    if (res.Id && scheduledCheckIn) {
+                        checkInDateMap.set(res.Id, new Date(scheduledCheckIn));
+                    }
+                    if (res.Id && actualCheckIn) {
+                        actualCheckInDateMap.set(res.Id, new Date(actualCheckIn));
                     }
                 });
             } catch (error: any) {
@@ -282,9 +289,10 @@ export async function syncTreeOrdersV3() {
         const quantity = toNumber(item.UnitCount, 1);
         const totalPrice = unitPrice * quantity; // CRITICAL: Calculate total price
 
-        // Get check-in date from reservation lookup
+        // Get check-in dates from reservation lookup
         // ServiceOrderId on OrderItem = ReservationId
         const checkInAt = item.ServiceOrderId ? checkInDateMap.get(item.ServiceOrderId) : null;
+        const actualCheckInAt = item.ServiceOrderId ? actualCheckInDateMap.get(item.ServiceOrderId) : null;
 
         return {
             mewsId: item.Id,
@@ -292,7 +300,8 @@ export async function syncTreeOrdersV3() {
             amount: totalPrice, // Store TOTAL price, not unit price
             currency: item.UnitAmount?.Currency || 'EUR',
             bookedAt: toDate(item.CreatedUtc),
-            checkInAt: checkInAt || null, // Check-in date from reservation's ScheduledStartUtc
+            checkInAt: checkInAt || null, // Scheduled check-in (ScheduledStartUtc)
+            actualCheckInAt: actualCheckInAt || null, // Actual check-in (ActualStartUtc) - USE FOR INVOICING
             state: item.AccountingState || 'Unknown'
         };
     });
@@ -349,7 +358,8 @@ export async function syncTreeOrdersV3() {
                 amount: line.amount,
                 currency: line.currency,
                 bookedAt: line.bookedAt,
-                checkInAt: line.checkInAt // NEW: Store check-in date if available
+                checkInAt: line.checkInAt, // Scheduled check-in (ScheduledStartUtc)
+                actualCheckInAt: line.actualCheckInAt // Actual check-in (ActualStartUtc) - for invoicing
             },
             create: {
                 mewsId: line.mewsId,
@@ -359,7 +369,8 @@ export async function syncTreeOrdersV3() {
                 amount: line.amount,
                 currency: line.currency,
                 bookedAt: line.bookedAt,
-                checkInAt: line.checkInAt // NEW: Store check-in date if available
+                checkInAt: line.checkInAt, // Scheduled check-in (ScheduledStartUtc)
+                actualCheckInAt: line.actualCheckInAt // Actual check-in (ActualStartUtc) - for invoicing
             }
         });
     }

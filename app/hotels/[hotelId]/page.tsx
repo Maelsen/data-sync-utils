@@ -289,7 +289,8 @@ export default function HotelDashboard({
               <table className="w-full">
                 <thead className="text-left text-sm text-gray-500 border-b">
                   <tr>
-                    <th className="pb-3">Date (Check-in)</th>
+                    <th className="pb-3">Scheduled</th>
+                    <th className="pb-3">Actual Arrival</th>
                     <th className="pb-3">Order Created</th>
                     <th className="pb-3">Quantity</th>
                     <th className="pb-3">Amount</th>
@@ -300,11 +301,20 @@ export default function HotelDashboard({
                   {filteredOrders.map((order: any) => (
                     <tr key={order.id} className="border-b last:border-0 hover:bg-gray-50">
                       <td className="py-3">
-                        <div className="font-medium text-gray-900">
+                        <div className="text-gray-600">
                           {order.checkInAt
                             ? new Date(order.checkInAt).toLocaleDateString('de-DE')
                             : '—'}
                         </div>
+                      </td>
+                      <td className="py-3">
+                        {order.actualCheckInAt ? (
+                          <div className="font-medium text-green-700">
+                            ✓ {new Date(order.actualCheckInAt).toLocaleDateString('de-DE')}
+                          </div>
+                        ) : (
+                          <div className="text-gray-400">—</div>
+                        )}
                       </td>
                       <td className="py-3">
                         <div className="text-gray-600">
