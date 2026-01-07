@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { addHours, subDays, min } from 'date-fns';
 import { prisma } from './prisma';
 import { MewsClient } from './mews';
+import { discoverTreeProduct } from './product-discovery';
 
 const CLIENT_TOKEN = process.env.MEWS_CLIENT_TOKEN || '';
 const ACCESS_TOKEN = process.env.MEWS_ACCESS_TOKEN || '';
@@ -128,7 +129,24 @@ export async function syncTreeOrdersV3() {
     console.log(`[sync-v3] Enterprise: ${enterprise.Name} (${enterprise.Id})`);
 
     // STEP 2: Filter for tree products
-    const treeProductIds = filterTreeProducts(allProducts);
+    let treeProductIds = filterTreeProducts(allProducts);
+
+    // BRÜCKE: Wenn keine Produkte gefunden und keine ID konfiguriert → Auto-Discovery
+    if (treeProductIds.length === 0 && !process.env.TREE_PRODUCT_ID) {
+        console.log('[sync-v3] No products found via API - trying auto-discovery...');
+
+        const discoveryResult = await discoverTreeProduct(mews);
+
+        if (discoveryResult.success && discoveryResult.product) {
+            console.log(`[sync-v3] ✅ Auto-discovered: ${discoveryResult.product.name}`);
+            console.log(`[sync-v3]    ID: ${discoveryResult.product.id}`);
+            console.log(`[sync-v3]    Confidence: ${discoveryResult.product.confidence}`);
+            console.log(`[sync-v3]    Matched term: "${discoveryResult.product.matchedTerm}"`);
+            treeProductIds = [discoveryResult.product.id];
+        } else {
+            console.error('[sync-v3] Auto-discovery failed:', discoveryResult.error);
+        }
+    }
 
     if (treeProductIds.length === 0) {
         console.error('[sync-v3] ERROR: No tree products found!');
