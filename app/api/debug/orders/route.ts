@@ -42,6 +42,7 @@ export async function GET() {
                 amount: o.amount,
                 currency: o.currency,
                 bookedAt: o.bookedAt,
+                checkInAt: o.checkInAt, // Check-in date from reservation
                 createdAt: o.createdAt
             }))
         });
