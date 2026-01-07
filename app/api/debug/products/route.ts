@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
 import { MewsClient } from '@/lib/mews';
-import axios from 'axios';
+import { subDays } from 'date-fns';
 
 /**
- * DEBUG ENDPOINT - Phase 1.1 (Updated)
+ * DEBUG ENDPOINT - Phase 1.1 (v3)
  *
- * Zeigt alle Services und Produkte aus der Mews API an.
- * SCHRITT 1: Services holen
- * SCHRITT 2: Mit ServiceIds die Products holen
+ * Extrahiert Produkte aus OrderItems (weil products/getAll in Demo leer ist)
+ * Die OrderItems enthalten Data.Product.Name + Data.Product.ProductId
  *
  * Ändert NICHTS an der bestehenden Automatisation.
  *
@@ -16,12 +15,10 @@ import axios from 'axios';
 
 const CLIENT_TOKEN = process.env.MEWS_CLIENT_TOKEN || '';
 const ACCESS_TOKEN = process.env.MEWS_ACCESS_TOKEN || '';
-const SERVICE_ID = process.env.MEWS_SERVICE_ID || '';
-const MEWS_API_URL = 'https://api.mews-demo.com/api/connector/v1';
 
 export async function GET() {
   try {
-    console.log('[debug/products] Fetching services and products from Mews API...');
+    console.log('[debug/products] Extracting products from OrderItems...');
 
     if (!CLIENT_TOKEN || !ACCESS_TOKEN) {
       return NextResponse.json({
@@ -36,85 +33,86 @@ export async function GET() {
       clientName: 'Click A Tree Debug 1.0.0',
     });
 
-    // SCHRITT 1: Hole alle Services
-    let services: any[] = [];
-    try {
-      const servicesResponse = await axios.post(`${MEWS_API_URL}/services/getAll`, {
-        ClientToken: CLIENT_TOKEN,
-        AccessToken: ACCESS_TOKEN,
-        Client: 'Click A Tree Debug 1.0.0',
-        Limitation: { Count: 100 }
-      });
-      services = servicesResponse.data.Services || [];
-      console.log(`[debug/products] Found ${services.length} services`);
-    } catch (err: any) {
-      console.warn('[debug/products] services/getAll failed:', err.message);
-    }
+    // Hole OrderItems der letzten 90 Tage
+    const endDate = new Date();
+    const startDate = subDays(endDate, 90);
 
-    // SCHRITT 2: Hole Products mit allen ServiceIds
-    const allServiceIds = services.map((s: any) => s.Id);
-    const serviceIdsToUse = SERVICE_ID ? [SERVICE_ID] : allServiceIds;
+    const updatedUtc = {
+      StartUtc: startDate.toISOString(),
+      EndUtc: endDate.toISOString(),
+    };
 
-    let products: any[] = [];
-    if (serviceIdsToUse.length > 0) {
-      const productsResponse: any = await mews.getProducts(serviceIdsToUse);
-      products = productsResponse.Products || [];
-    }
+    console.log(`[debug/products] Fetching orderitems from ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
-    console.log(`[debug/products] Found ${products.length} products`);
+    let allOrderItems: any[] = [];
+    let cursor: string | undefined;
+    let pageCount = 0;
 
-    // Formatiere Services für Anzeige
-    const formattedServices = services.map((s: any) => ({
-      id: s.Id,
-      name: s.Name,
-      type: s.Type,
-      isActive: s.IsActive,
-    }));
+    do {
+      const data: any = await mews.getOrderItems([], updatedUtc, cursor);
+      const items = data.OrderItems || [];
+      allOrderItems.push(...items);
+      cursor = data.Cursor;
+      pageCount++;
 
-    // Formatiere für bessere Lesbarkeit
-    const formattedProducts = products.map((p: any) => ({
-      id: p.Id,
-      names: p.Names,           // Lokalisierte Namen { "en-US": "...", "de-DE": "..." }
-      externalNames: p.ExternalNames,
-      shortNames: p.ShortNames,
-      serviceId: p.ServiceId,
-      isActive: p.IsActive,
-      categoryId: p.CategoryId,
-      // Hilfreich für die Suche:
-      allNameValues: Object.values(p.Names || {}).join(' | '),
-    }));
+      console.log(`[debug/products] Page ${pageCount}: ${items.length} items (total: ${allOrderItems.length})`);
 
-    // Suche nach potentiellen "Tree" Produkten (nur zur Info, ändert nichts)
-    const potentialTreeProducts = formattedProducts.filter((p: any) => {
-      const allNames = (p.allNameValues || '').toLowerCase();
-      return allNames.includes('tree') ||
-             allNames.includes('baum') ||
-             allNames.includes('click');
+      if (!cursor || cursor.trim() === '') break;
+    } while (cursor && pageCount < 10); // Max 10 pages
+
+    console.log(`[debug/products] Total OrderItems: ${allOrderItems.length}`);
+
+    // Extrahiere eindeutige Produkte aus OrderItems
+    const productMap = new Map<string, any>();
+
+    allOrderItems.forEach((oi: any) => {
+      if (oi.Type === 'ProductOrder' && oi.Data?.Product) {
+        const productId = oi.Data.Product.ProductId;
+        const productName = oi.Data.Product.Name || 'Unknown';
+
+        if (!productMap.has(productId)) {
+          productMap.set(productId, {
+            id: productId,
+            name: productName,
+            serviceId: oi.ServiceId,
+            orderCount: 1,
+          });
+        } else {
+          productMap.get(productId).orderCount++;
+        }
+      }
+    });
+
+    const uniqueProducts = Array.from(productMap.values());
+    console.log(`[debug/products] Found ${uniqueProducts.length} unique products`);
+
+    // Suche nach potentiellen "Tree" Produkten
+    const potentialTreeProducts = uniqueProducts.filter((p: any) => {
+      const name = (p.name || '').toLowerCase();
+      return name.includes('tree') ||
+             name.includes('baum') ||
+             name.includes('click');
     });
 
     return NextResponse.json({
       success: true,
 
       // Zusammenfassung
-      totalServices: services.length,
-      totalProducts: products.length,
+      totalOrderItems: allOrderItems.length,
+      totalUniqueProducts: uniqueProducts.length,
       potentialTreeProducts: potentialTreeProducts.length,
 
       // Aktuelle Konfiguration (zum Vergleich)
       currentConfig: {
         TREE_PRODUCT_ID: process.env.TREE_PRODUCT_ID || '(nicht gesetzt)',
         TREE_PRODUCT_NAME: process.env.TREE_PRODUCT_NAME || 'tree',
-        MEWS_SERVICE_ID: SERVICE_ID || '(nicht gesetzt)',
       },
 
-      // Services (wichtig um ServiceId zu finden)
-      services: formattedServices,
-
-      // Potential matches (markiert)
+      // WICHTIG: Potentielle Tree-Matches
       potentialMatches: potentialTreeProducts,
 
-      // Alle Produkte
-      allProducts: formattedProducts,
+      // Alle gefundenen Produkte (sortiert nach orderCount)
+      allProducts: uniqueProducts.sort((a, b) => b.orderCount - a.orderCount),
     });
 
   } catch (error: any) {
