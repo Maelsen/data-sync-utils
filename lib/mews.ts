@@ -118,12 +118,13 @@ export class MewsClient {
     }
 
     /**
-     * Get reservations by ServiceOrderIds (to get check-in dates)
+     * Get reservations by IDs (to get check-in dates)
      * https://mews-systems.gitbook.io/connector-api/operations/reservations#get-all-reservations-ver-2023-06-06
      *
-     * NOTE: This is used to get the StartUtc (check-in date) for product orders
+     * NOTE: OrderItem.ServiceOrderId = ReservationId
+     * Use ScheduledStartUtc from response for check-in date
      */
-    async getReservationsByIds(serviceOrderIds: string[], cursor?: string) {
+    async getReservationsByIds(reservationIds: string[], cursor?: string) {
         const payload: any = cursor
             ? {
                 // Pagination request: only Limitation with Cursor
@@ -133,8 +134,9 @@ export class MewsClient {
                 }
             }
             : {
-                // Initial request: ServiceOrderIds + Limitation
-                ServiceOrderIds: serviceOrderIds,
+                // Initial request: ReservationIds + Limitation
+                // NOTE: Parameter is ReservationIds (NOT ServiceOrderIds)
+                ReservationIds: reservationIds,
                 Limitation: { Count: 1000 }
             };
 

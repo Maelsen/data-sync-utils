@@ -231,17 +231,60 @@ export async function syncTreeOrdersV3() {
 
     console.log(`[sync-v3] Found ${treeOrderItems.length} tree order items`);
 
-    // STEP 5: Convert to treeLines format
-    // NOTE: OrderItems have StartUtc directly - this is the check-in date from the linked reservation
-    // No need for separate API call to reservations/getAll
+    // STEP 5: Fetch check-in dates from reservations
+    // OrderItem.ServiceOrderId = ReservationId
+    // Reservation.ScheduledStartUtc = Check-in date
+    console.log('[sync-v3] STEP 4: Fetching check-in dates from reservations...');
+    const checkInDateMap = new Map<string, Date>();
+
+    // Collect unique ServiceOrderIds (= ReservationIds)
+    const reservationIds = [...new Set(
+        treeOrderItems
+            .map((oi: any) => oi.ServiceOrderId)
+            .filter((id: string) => id) // Remove null/undefined
+    )];
+
+    console.log(`[sync-v3] Found ${reservationIds.length} unique reservations to lookup`);
+
+    if (reservationIds.length > 0) {
+        // Fetch reservations in batches of 100 (API best practice)
+        const batchSize = 100;
+        for (let i = 0; i < reservationIds.length; i += batchSize) {
+            const batch = reservationIds.slice(i, i + batchSize);
+            console.log(`[sync-v3] Fetching reservations batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(reservationIds.length / batchSize)} (${batch.length} IDs)`);
+
+            try {
+                const reservationsData = await mews.getReservationsByIds(batch);
+                const reservations = reservationsData.Reservations || [];
+
+                console.log(`[sync-v3] Got ${reservations.length} reservations`);
+
+                reservations.forEach((res: any) => {
+                    // Use ScheduledStartUtc for check-in date (per Mews docs)
+                    // Fallback to StartUtc if ScheduledStartUtc is not available
+                    const checkInDate = res.ScheduledStartUtc || res.StartUtc;
+                    if (res.Id && checkInDate) {
+                        checkInDateMap.set(res.Id, new Date(checkInDate));
+                    }
+                });
+            } catch (error: any) {
+                console.error(`[sync-v3] Error fetching reservations: ${error.message}`);
+                // Continue with other batches
+            }
+        }
+
+        console.log(`[sync-v3] Mapped ${checkInDateMap.size} check-in dates`);
+    }
+
+    // STEP 6: Convert to treeLines format
     const treeLines = treeOrderItems.map((item: any) => {
         const unitPrice = toNumber(item.UnitAmount?.GrossValue, 0);
         const quantity = toNumber(item.UnitCount, 1);
         const totalPrice = unitPrice * quantity; // CRITICAL: Calculate total price
 
-        // StartUtc on OrderItem = check-in date (from linked reservation)
-        // This is when the product consumption starts, which aligns with guest check-in
-        const checkInAt = item.StartUtc ? toDate(item.StartUtc) : null;
+        // Get check-in date from reservation lookup
+        // ServiceOrderId on OrderItem = ReservationId
+        const checkInAt = item.ServiceOrderId ? checkInDateMap.get(item.ServiceOrderId) : null;
 
         return {
             mewsId: item.Id,
@@ -249,12 +292,12 @@ export async function syncTreeOrdersV3() {
             amount: totalPrice, // Store TOTAL price, not unit price
             currency: item.UnitAmount?.Currency || 'EUR',
             bookedAt: toDate(item.CreatedUtc),
-            checkInAt: checkInAt, // Check-in date directly from OrderItem.StartUtc
+            checkInAt: checkInAt || null, // Check-in date from reservation's ScheduledStartUtc
             state: item.AccountingState || 'Unknown'
         };
     });
 
-    console.log(`[sync-v3] STEP 4: Database operations...`);
+    console.log(`[sync-v3] STEP 5: Database operations...`);
     console.log(`[sync-v3] Tree lines total: ${treeLines.length}`);
 
     if (treeLines.length === 0) {
