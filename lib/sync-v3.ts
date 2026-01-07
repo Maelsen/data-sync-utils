@@ -231,48 +231,17 @@ export async function syncTreeOrdersV3() {
 
     console.log(`[sync-v3] Found ${treeOrderItems.length} tree order items`);
 
-    // BONUS STEP: Fetch check-in dates from reservations (optional - won't break sync if it fails)
-    const checkInDateMap = new Map<string, Date>();
-    try {
-        // Collect unique ServiceOrderIds from tree order items
-        const serviceOrderIds = [...new Set(
-            treeOrderItems
-                .map((oi: any) => oi.ServiceOrderId)
-                .filter((id: string) => id) // Remove null/undefined
-        )];
-
-        if (serviceOrderIds.length > 0) {
-            console.log(`[sync-v3] BONUS: Fetching check-in dates for ${serviceOrderIds.length} reservations...`);
-
-            // Fetch reservations in batches of 100 (API limit)
-            const batchSize = 100;
-            for (let i = 0; i < serviceOrderIds.length; i += batchSize) {
-                const batch = serviceOrderIds.slice(i, i + batchSize);
-                const reservationsData = await mews.getReservationsByIds(batch);
-                const reservations = reservationsData.Reservations || [];
-
-                reservations.forEach((res: any) => {
-                    if (res.Id && res.StartUtc) {
-                        checkInDateMap.set(res.Id, new Date(res.StartUtc));
-                    }
-                });
-            }
-
-            console.log(`[sync-v3] BONUS: Got check-in dates for ${checkInDateMap.size} reservations`);
-        }
-    } catch (error: any) {
-        // Don't fail the sync if check-in dates can't be fetched
-        console.warn(`[sync-v3] BONUS: Failed to fetch check-in dates (sync continues): ${error.message}`);
-    }
-
     // STEP 5: Convert to treeLines format
+    // NOTE: OrderItems have StartUtc directly - this is the check-in date from the linked reservation
+    // No need for separate API call to reservations/getAll
     const treeLines = treeOrderItems.map((item: any) => {
         const unitPrice = toNumber(item.UnitAmount?.GrossValue, 0);
         const quantity = toNumber(item.UnitCount, 1);
         const totalPrice = unitPrice * quantity; // CRITICAL: Calculate total price
 
-        // Get check-in date from reservation (if available)
-        const checkInAt = item.ServiceOrderId ? checkInDateMap.get(item.ServiceOrderId) : null;
+        // StartUtc on OrderItem = check-in date (from linked reservation)
+        // This is when the product consumption starts, which aligns with guest check-in
+        const checkInAt = item.StartUtc ? toDate(item.StartUtc) : null;
 
         return {
             mewsId: item.Id,
@@ -280,7 +249,7 @@ export async function syncTreeOrdersV3() {
             amount: totalPrice, // Store TOTAL price, not unit price
             currency: item.UnitAmount?.Currency || 'EUR',
             bookedAt: toDate(item.CreatedUtc),
-            checkInAt: checkInAt || null, // NEW: Check-in date from reservation
+            checkInAt: checkInAt, // Check-in date directly from OrderItem.StartUtc
             state: item.AccountingState || 'Unknown'
         };
     });
