@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 /**
  * Encryption utilities for securing hotel credentials
- * Uses AES-256-GCM for authenticated encryption
+ * Uses AES-256-GCM for a authenticated encryption
  */
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || '';
