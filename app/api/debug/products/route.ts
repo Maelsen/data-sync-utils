@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import { MewsClient } from '@/lib/mews';
+import axios from 'axios';
 
 /**
- * DEBUG ENDPOINT - Phase 1.1
+ * DEBUG ENDPOINT - Phase 1.1 (Updated)
  *
- * Zeigt alle Produkte aus der Mews API an.
+ * Zeigt alle Services und Produkte aus der Mews API an.
+ * SCHRITT 1: Services holen
+ * SCHRITT 2: Mit ServiceIds die Products holen
+ *
  * Ändert NICHTS an der bestehenden Automatisation.
  *
  * Aufruf: GET /api/debug/products
@@ -13,10 +17,11 @@ import { MewsClient } from '@/lib/mews';
 const CLIENT_TOKEN = process.env.MEWS_CLIENT_TOKEN || '';
 const ACCESS_TOKEN = process.env.MEWS_ACCESS_TOKEN || '';
 const SERVICE_ID = process.env.MEWS_SERVICE_ID || '';
+const MEWS_API_URL = 'https://api.mews-demo.com/api/connector/v1';
 
 export async function GET() {
   try {
-    console.log('[debug/products] Fetching all products from Mews API...');
+    console.log('[debug/products] Fetching services and products from Mews API...');
 
     if (!CLIENT_TOKEN || !ACCESS_TOKEN) {
       return NextResponse.json({
@@ -31,13 +36,40 @@ export async function GET() {
       clientName: 'Click A Tree Debug 1.0.0',
     });
 
-    // Hole alle Produkte
-    const serviceIds = SERVICE_ID ? [SERVICE_ID] : [];
-    const productsResponse: any = await mews.getProducts(serviceIds);
+    // SCHRITT 1: Hole alle Services
+    let services: any[] = [];
+    try {
+      const servicesResponse = await axios.post(`${MEWS_API_URL}/services/getAll`, {
+        ClientToken: CLIENT_TOKEN,
+        AccessToken: ACCESS_TOKEN,
+        Client: 'Click A Tree Debug 1.0.0',
+        Limitation: { Count: 100 }
+      });
+      services = servicesResponse.data.Services || [];
+      console.log(`[debug/products] Found ${services.length} services`);
+    } catch (err: any) {
+      console.warn('[debug/products] services/getAll failed:', err.message);
+    }
 
-    const products = productsResponse.Products || [];
+    // SCHRITT 2: Hole Products mit allen ServiceIds
+    const allServiceIds = services.map((s: any) => s.Id);
+    const serviceIdsToUse = SERVICE_ID ? [SERVICE_ID] : allServiceIds;
+
+    let products: any[] = [];
+    if (serviceIdsToUse.length > 0) {
+      const productsResponse: any = await mews.getProducts(serviceIdsToUse);
+      products = productsResponse.Products || [];
+    }
 
     console.log(`[debug/products] Found ${products.length} products`);
+
+    // Formatiere Services für Anzeige
+    const formattedServices = services.map((s: any) => ({
+      id: s.Id,
+      name: s.Name,
+      type: s.Type,
+      isActive: s.IsActive,
+    }));
 
     // Formatiere für bessere Lesbarkeit
     const formattedProducts = products.map((p: any) => ({
@@ -62,15 +94,21 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
+
+      // Zusammenfassung
+      totalServices: services.length,
       totalProducts: products.length,
       potentialTreeProducts: potentialTreeProducts.length,
 
       // Aktuelle Konfiguration (zum Vergleich)
       currentConfig: {
         TREE_PRODUCT_ID: process.env.TREE_PRODUCT_ID || '(nicht gesetzt)',
-        TREE_PRODUCT_NAME: process.env.TREE_PRODUCT_NAME || '(nicht gesetzt)',
+        TREE_PRODUCT_NAME: process.env.TREE_PRODUCT_NAME || 'tree',
         MEWS_SERVICE_ID: SERVICE_ID || '(nicht gesetzt)',
       },
+
+      // Services (wichtig um ServiceId zu finden)
+      services: formattedServices,
 
       // Potential matches (markiert)
       potentialMatches: potentialTreeProducts,
