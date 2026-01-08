@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Demo endpoint for sandbox credentials
-const MEWS_API_URL = 'https://api.mews-demo.com/api/connector/v1';
+// API URL: defaults to production, can override via env for demo/testing
+const MEWS_API_URL = process.env.MEWS_API_URL || 'https://api.mews.com/api/connector/v1';
 
 interface MewsConfig {
     clientToken: string;
