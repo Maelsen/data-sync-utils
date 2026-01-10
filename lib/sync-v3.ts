@@ -148,10 +148,23 @@ export async function syncTreeOrdersV3() {
         }
     }
 
+    // ÄNDERUNG: Hotel trotzdem anlegen, auch wenn keine Tree-Produkte gefunden wurden
+    // So erscheint das Hotel im Dashboard und man sieht dass die Verbindung funktioniert
     if (treeProductIds.length === 0) {
-        console.error('[sync-v3] ERROR: No tree products found!');
-        console.error('[sync-v3] Check TREE_PRODUCT_ID or TREE_PRODUCT_NAME environment variables');
-        throw new Error('No tree products found - check configuration');
+        console.warn('[sync-v3] WARNING: No tree products found');
+        console.warn('[sync-v3] Hotel will be created but with 0 orders');
+        console.warn('[sync-v3] The hotel needs to create a "Click A Tree" product in Mews');
+
+        // Trotzdem Hotel in DB anlegen
+        const hotel = await prisma.hotel.upsert({
+            where: { mewsId: enterprise.Id },
+            update: { name: enterprise.Name },
+            create: { mewsId: enterprise.Id, name: enterprise.Name, pmsType: 'mews' }
+        });
+
+        console.log(`[sync-v3] Hotel created/updated: ${hotel.name} (${hotel.id})`);
+        console.log('[sync-v3] ⚠️ Sync complete - no tree products to sync');
+        return; // Early return, aber kein Fehler
     }
 
     // STEP 3: Paginate through order items in time windows
