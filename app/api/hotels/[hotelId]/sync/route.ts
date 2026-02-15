@@ -72,6 +72,20 @@ async function fetchAllProducts(mews: MewsClient, serviceIds: string[]): Promise
 }
 
 /**
+ * Extract product name as string (handles both string and localized object)
+ */
+function getProductName(product: any): string {
+  const name = product.Name;
+  if (!name) return '';
+  if (typeof name === 'string') return name;
+  if (typeof name === 'object') {
+    // Mews returns localized names like {"en-US": "...", "de-DE": "..."}
+    return Object.values(name).join(' ');
+  }
+  return String(name);
+}
+
+/**
  * Filter products to find tree products by ID or name
  */
 function filterTreeProducts(products: any[]): string[] {
@@ -86,11 +100,11 @@ function filterTreeProducts(products: any[]): string[] {
   } else {
     console.log(`[hotel-sync] Filtering by name contains: '${TREE_NAME}'`);
     treeProducts = products.filter((p: any) =>
-      (p.Name || '').toLowerCase().includes(TREE_NAME)
+      getProductName(p).toLowerCase().includes(TREE_NAME)
     );
   }
 
-  console.log(`[hotel-sync] Found ${treeProducts.length} tree product(s): ${treeProducts.map(p => p.Name).join(', ')}`);
+  console.log(`[hotel-sync] Found ${treeProducts.length} tree product(s): ${treeProducts.map(p => getProductName(p)).join(', ')}`);
 
   return treeProducts.map((p: any) => p.Id);
 }
