@@ -92,12 +92,6 @@ function filterTreeProducts(products: any[]): string[] {
   const targetProductId = process.env.TREE_PRODUCT_ID || process.env.TREE_SERVICE_ID;
   const TREE_NAME = (process.env.TREE_PRODUCT_NAME || 'tree').toLowerCase();
 
-  // Debug: log product count and first 3 product names to diagnose filtering issues
-  console.log(`[hotel-sync] Total products to filter: ${products.length}`);
-  products.slice(0, 3).forEach((p: any, i: number) => {
-    console.log(`[hotel-sync]   Product[${i}] Name type=${typeof p.Name} value=${JSON.stringify(p.Name).slice(0, 100)}`);
-  });
-
   let treeProducts: any[] = [];
 
   if (targetProductId) {
@@ -197,21 +191,6 @@ export async function GET(
         success: true,
         message: 'No tree products found in Mews',
         synced: 0,
-        debug: {
-          totalProducts: allProducts.length,
-          serviceIds: serviceIds.length,
-          filterCriteria: {
-            TREE_PRODUCT_ID: process.env.TREE_PRODUCT_ID || null,
-            TREE_SERVICE_ID: process.env.TREE_SERVICE_ID || null,
-            TREE_PRODUCT_NAME: process.env.TREE_PRODUCT_NAME || null,
-            effectiveFilter: (process.env.TREE_PRODUCT_ID || process.env.TREE_SERVICE_ID) ? 'by-id' : 'by-name',
-          },
-          sampleProducts: allProducts.slice(0, 5).map((p: any) => ({
-            id: p.Id,
-            name: p.Name,
-            nameType: typeof p.Name,
-          })),
-        },
       });
     }
 
