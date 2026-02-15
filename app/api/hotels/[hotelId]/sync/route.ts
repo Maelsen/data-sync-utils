@@ -92,6 +92,12 @@ function filterTreeProducts(products: any[]): string[] {
   const targetProductId = process.env.TREE_PRODUCT_ID || process.env.TREE_SERVICE_ID;
   const TREE_NAME = (process.env.TREE_PRODUCT_NAME || 'tree').toLowerCase();
 
+  // Debug: log product count and first 3 product names to diagnose filtering issues
+  console.log(`[hotel-sync] Total products to filter: ${products.length}`);
+  products.slice(0, 3).forEach((p: any, i: number) => {
+    console.log(`[hotel-sync]   Product[${i}] Name type=${typeof p.Name} value=${JSON.stringify(p.Name).slice(0, 100)}`);
+  });
+
   let treeProducts: any[] = [];
 
   if (targetProductId) {
