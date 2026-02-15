@@ -200,6 +200,12 @@ export async function GET(
         debug: {
           totalProducts: allProducts.length,
           serviceIds: serviceIds.length,
+          filterCriteria: {
+            TREE_PRODUCT_ID: process.env.TREE_PRODUCT_ID || null,
+            TREE_SERVICE_ID: process.env.TREE_SERVICE_ID || null,
+            TREE_PRODUCT_NAME: process.env.TREE_PRODUCT_NAME || null,
+            effectiveFilter: (process.env.TREE_PRODUCT_ID || process.env.TREE_SERVICE_ID) ? 'by-id' : 'by-name',
+          },
           sampleProducts: allProducts.slice(0, 5).map((p: any) => ({
             id: p.Id,
             name: p.Name,
