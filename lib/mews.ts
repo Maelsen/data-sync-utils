@@ -118,6 +118,14 @@ export class MewsClient {
     }
 
     /**
+     * Get all services
+     * Fallback when configuration/get returns no Services
+     */
+    async getServices() {
+        return this.request('services/getAll');
+    }
+
+    /**
      * Get reservations by IDs (to get check-in dates)
      * https://mews-systems.gitbook.io/connector-api/operations/reservations#get-all-reservations-ver-2023-06-06
      *

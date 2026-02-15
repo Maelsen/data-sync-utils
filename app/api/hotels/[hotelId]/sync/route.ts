@@ -24,17 +24,29 @@ function toDate(value: any) {
 }
 
 /**
- * Fetch all products with pagination
+ * Get service IDs from configuration, falling back to services/getAll
  */
-async function fetchAllProducts(mews: MewsClient): Promise<any[]> {
-  console.log('[hotel-sync] Fetching products...');
-
-  // Get configuration to extract serviceIds
+async function getServiceIds(mews: MewsClient): Promise<string[]> {
   const config = await mews.getConfiguration();
-  const serviceIds = config.Services?.map((s: any) => s.Id) || [];
+  let serviceIds = config.Services?.map((s: any) => s.Id) || [];
 
   if (serviceIds.length === 0) {
-    console.warn('[hotel-sync] No service IDs found in configuration');
+    console.log('[hotel-sync] configuration/get returned no services, falling back to services/getAll');
+    const svcData = await mews.getServices();
+    serviceIds = (svcData.Services || []).map((s: any) => s.Id);
+  }
+
+  return serviceIds;
+}
+
+/**
+ * Fetch all products with pagination
+ */
+async function fetchAllProducts(mews: MewsClient, serviceIds: string[]): Promise<any[]> {
+  console.log('[hotel-sync] Fetching products...');
+
+  if (serviceIds.length === 0) {
+    console.warn('[hotel-sync] No service IDs found');
     return [];
   }
 
@@ -134,27 +146,27 @@ export async function GET(
       clientName: 'Click A Tree Integration 1.0.0',
     });
 
-    // STEP 1: Fetch configuration and products (ONCE per sync)
-    console.log('[hotel-sync] Fetching configuration and products...');
-    const [configData, allProducts] = await Promise.all([
-      mews.getConfiguration(),
-      fetchAllProducts(mews)
-    ]);
+    // STEP 1: Fetch configuration, services, and products (ONCE per sync)
+    console.log('[hotel-sync] Fetching configuration and services...');
+    const configData = await mews.getConfiguration();
 
     const enterprise = configData.Enterprise || { Id: hotel.mewsId, Name: hotel.name };
     console.log(`[hotel-sync] Enterprise: ${enterprise.Name} (${enterprise.Id})`);
 
-    // Get ServiceIds from configuration
-    const serviceIds = configData.Services?.map((s: any) => s.Id) || [];
-    console.log(`[hotel-sync] Service IDs: ${serviceIds.join(', ')}`);
+    // Get ServiceIds (with fallback to services/getAll)
+    const serviceIds = await getServiceIds(mews);
+    console.log(`[hotel-sync] Service IDs: ${serviceIds.length} found`);
 
     if (serviceIds.length === 0) {
-      console.error('[hotel-sync] No service IDs found in configuration');
+      console.error('[hotel-sync] No service IDs found');
       return NextResponse.json(
         { error: 'No service IDs found in hotel configuration' },
         { status: 500 }
       );
     }
+
+    // Fetch products using the service IDs
+    const allProducts = await fetchAllProducts(mews, serviceIds);
 
     // STEP 2: Filter for tree products
     const treeProductIds = filterTreeProducts(allProducts);
