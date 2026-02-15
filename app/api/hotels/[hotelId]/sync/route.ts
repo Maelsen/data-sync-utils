@@ -392,20 +392,6 @@ export async function GET(
       message: `Synced ${syncedCount} new order(s)`,
       synced: syncedCount,
       hotel: hotel.name,
-      _debug: {
-        reservationIds: reservationIds.slice(0, 5),
-        reservationMapSize: reservationMap.size,
-        reservationData: Array.from(reservationMap.entries()).slice(0, 3).map(([id, data]) => ({
-          id,
-          scheduledStart: data.scheduledStart?.toISOString() || null,
-          actualStart: data.actualStart?.toISOString() || null,
-        })),
-        sampleTreeLines: treeLines.slice(0, 3).map((l: any) => ({
-          mewsId: l.mewsId,
-          checkInAt: l.checkInAt?.toISOString() || null,
-          actualCheckInAt: l.actualCheckInAt?.toISOString() || null,
-        })),
-      },
     });
   } catch (error: any) {
     console.error('[hotel-sync] Error:', error);
