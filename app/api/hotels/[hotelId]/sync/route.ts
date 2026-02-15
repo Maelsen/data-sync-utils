@@ -197,6 +197,15 @@ export async function GET(
         success: true,
         message: 'No tree products found in Mews',
         synced: 0,
+        debug: {
+          totalProducts: allProducts.length,
+          serviceIds: serviceIds.length,
+          sampleProducts: allProducts.slice(0, 5).map((p: any) => ({
+            id: p.Id,
+            name: p.Name,
+            nameType: typeof p.Name,
+          })),
+        },
       });
     }
 
