@@ -271,11 +271,42 @@ export async function GET(
 
     console.log(`[hotel-sync] Found ${treeOrderItems.length} tree order items`);
 
-    // STEP 5: Convert to treeLines format
+    // STEP 5: Fetch reservation data for check-in dates
+    const reservationIds = [...new Set(
+      treeOrderItems
+        .map((oi: any) => oi.ServiceOrderId)
+        .filter(Boolean)
+    )];
+
+    const reservationMap = new Map<string, { scheduledStart: Date | null; actualStart: Date | null }>();
+
+    if (reservationIds.length > 0) {
+      console.log(`[hotel-sync] Fetching ${reservationIds.length} reservation(s) for check-in dates...`);
+      try {
+        let resCursor: string | undefined;
+        do {
+          const resData = await mews.getReservationsByIds(reservationIds, resCursor);
+          for (const res of (resData.Reservations || [])) {
+            reservationMap.set(res.Id, {
+              scheduledStart: res.ScheduledStartUtc ? new Date(res.ScheduledStartUtc) : null,
+              actualStart: res.ActualStartUtc ? new Date(res.ActualStartUtc) : null,
+            });
+          }
+          resCursor = resData.Cursor;
+          if (!resCursor || resCursor.trim() === '') break;
+        } while (resCursor);
+        console.log(`[hotel-sync] Fetched ${reservationMap.size} reservation(s)`);
+      } catch (err: any) {
+        console.warn(`[hotel-sync] Could not fetch reservations: ${err.message}`);
+      }
+    }
+
+    // STEP 6: Convert to treeLines format
     const treeLines = treeOrderItems.map((item: any) => {
       const unitPrice = toNumber(item.UnitAmount?.GrossValue, 0);
       const quantity = toNumber(item.UnitCount, 1);
       const totalPrice = unitPrice * quantity; // CRITICAL: Calculate total price
+      const reservation = reservationMap.get(item.ServiceOrderId);
 
       return {
         mewsId: item.Id,
@@ -283,6 +314,8 @@ export async function GET(
         amount: totalPrice, // Store TOTAL price, not unit price
         currency: item.UnitAmount?.Currency || 'EUR',
         bookedAt: toDate(item.CreatedUtc),
+        checkInAt: reservation?.scheduledStart || null,
+        actualCheckInAt: reservation?.actualStart || null,
         state: item.AccountingState || 'Unknown'
       };
     });
@@ -298,7 +331,7 @@ export async function GET(
       });
     }
 
-    // STEP 6: Delete canceled orders (not in current sync window)
+    // STEP 7: Delete canceled orders (not in current sync window)
     const syncWindowStart = subDays(new Date(), 30);
     const existingOrders = await prisma.treeOrder.findMany({
       where: { hotelId: hotel.id },
@@ -323,7 +356,7 @@ export async function GET(
       console.log(`[hotel-sync] Deleted ${ordersToDelete.length} canceled orders`);
     }
 
-    // STEP 7: Upsert tree orders
+    // STEP 8: Upsert tree orders
     let syncedCount = 0;
     for (const line of treeLines) {
       await prisma.treeOrder.upsert({
@@ -333,7 +366,9 @@ export async function GET(
           quantity: line.quantity,
           amount: line.amount,
           currency: line.currency,
-          bookedAt: line.bookedAt
+          bookedAt: line.bookedAt,
+          checkInAt: line.checkInAt,
+          actualCheckInAt: line.actualCheckInAt,
         },
         create: {
           mewsId: line.mewsId,
@@ -342,7 +377,9 @@ export async function GET(
           quantity: line.quantity,
           amount: line.amount,
           currency: line.currency,
-          bookedAt: line.bookedAt
+          bookedAt: line.bookedAt,
+          checkInAt: line.checkInAt,
+          actualCheckInAt: line.actualCheckInAt,
         }
       });
       syncedCount++;
