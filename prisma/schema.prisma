@@ -15,6 +15,7 @@ datasource db {
 enum PmsType {
   mews
   hotelspider
+  hotelpartner
 }
 
 model Hotel {
@@ -116,6 +117,12 @@ model HotelCredentials {
   hotelspiderUsername String?  // Encrypted username
   hotelspiderPassword String?  // Encrypted password
   hotelspiderHotelCode String?  // Plain text hotel identifier
+
+  // HotelPartner/res-online-specific credentials (encrypted)
+  hotelpartnerUsername String?  // Encrypted API username (e.g., "ClickaTree")
+  hotelpartnerPassword String?  // Encrypted API password
+  hotelpartnerHotelId  String?  // Plain text hotel ID in res-online (e.g., "3149")
+  hotelpartnerExtraId  String?  // Plain text tree extra ID (e.g., "4940")
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

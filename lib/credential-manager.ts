@@ -20,9 +20,19 @@ export interface HotelSpiderCredentials {
 }
 
 /**
+ * HotelPartner / res-online credentials interface
+ */
+export interface HotelPartnerCredentials {
+  username: string;
+  password: string;
+  hotelId: string;
+  extraId: string | null;
+}
+
+/**
  * Generic PMS credentials type
  */
-export type PmsCredentials = MewsCredentials | HotelSpiderCredentials;
+export type PmsCredentials = MewsCredentials | HotelSpiderCredentials | HotelPartnerCredentials;
 
 /**
  * Credential Manager
@@ -101,9 +111,50 @@ export class CredentialManager {
   }
 
   /**
+   * Get HotelPartner credentials for a hotel
+   * @param hotelId - The hotel ID
+   * @returns Decrypted HotelPartner credentials
+   * @throws Error if credentials not found or invalid
+   */
+  async getHotelPartnerCredentials(hotelId: string): Promise<HotelPartnerCredentials> {
+    try {
+      const creds = await prisma.hotelCredentials.findUnique({
+        where: { hotelId },
+      });
+
+      if (
+        !creds ||
+        !creds.hotelpartnerUsername ||
+        !creds.hotelpartnerPassword ||
+        !creds.hotelpartnerHotelId
+      ) {
+        throw new Error(`HotelPartner credentials not found for hotel ${hotelId}`);
+      }
+
+      // Decrypt the credentials (hotelId and extraId are stored in plaintext)
+      const username = decrypt(creds.hotelpartnerUsername);
+      const password = decrypt(creds.hotelpartnerPassword);
+      const hpHotelId = creds.hotelpartnerHotelId;
+      const extraId = creds.hotelpartnerExtraId || null;
+
+      return {
+        username,
+        password,
+        hotelId: hpHotelId,
+        extraId,
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to get HotelPartner credentials: ${error.message}`);
+      }
+      throw new Error('Failed to get HotelPartner credentials: Unknown error');
+    }
+  }
+
+  /**
    * Get credentials for a hotel based on its PMS type
    * @param hotelId - The hotel ID
-   * @param pmsType - The PMS type (mews or hotelspider)
+   * @param pmsType - The PMS type (mews, hotelspider, or hotelpartner)
    * @returns Decrypted PMS credentials
    * @throws Error if credentials not found or invalid
    */
@@ -115,6 +166,8 @@ export class CredentialManager {
       return this.getMewsCredentials(hotelId);
     } else if (pmsType === 'hotelspider') {
       return this.getHotelSpiderCredentials(hotelId);
+    } else if (pmsType === 'hotelpartner') {
+      return this.getHotelPartnerCredentials(hotelId);
     } else {
       throw new Error(`Unknown PMS type: ${pmsType}`);
     }
@@ -151,6 +204,13 @@ export class CredentialManager {
           !!spiderCreds.username &&
           !!spiderCreds.password &&
           !!spiderCreds.hotelCode
+        );
+      } else if (pmsType === 'hotelpartner') {
+        const hpCreds = creds as HotelPartnerCredentials;
+        return (
+          !!hpCreds.username &&
+          !!hpCreds.password &&
+          !!hpCreds.hotelId
         );
       }
 

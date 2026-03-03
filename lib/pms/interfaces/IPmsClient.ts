@@ -14,7 +14,6 @@ export interface TreeOrderData {
   amount: number;            // Total amount
   currency: string;          // Currency code (EUR, USD, etc.)
   bookedAt: Date;            // When the order was booked
-  guestName?: string;        // Optional guest name
   reservationId?: string;    // Optional reservation ID
   metadata?: Record<string, any>; // Optional PMS-specific metadata
 }

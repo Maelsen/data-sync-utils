@@ -14,6 +14,8 @@ import { IPmsWebhookHandler } from './interfaces/IPmsWebhookHandler';
 // import { MewsWebhookHandler } from './mews/MewsWebhookHandler';
 import { HotelSpiderClient } from './hotelspider/HotelSpiderClient';
 import { HotelSpiderWebhookHandler } from './hotelspider/HotelSpiderWebhookHandler';
+import { HotelPartnerClient } from './hotelpartner/HotelPartnerClient';
+import { HotelPartnerWebhookHandler } from './hotelpartner/HotelPartnerWebhookHandler';
 
 /**
  * PMS Factory
@@ -34,6 +36,9 @@ export class PmsFactory {
       case 'hotelspider':
         return new HotelSpiderClient(hotelId);
 
+      case 'hotelpartner':
+        return new HotelPartnerClient(hotelId);
+
       default:
         throw new Error(`Unknown PMS type: ${pmsType}`);
     }
@@ -42,7 +47,7 @@ export class PmsFactory {
   /**
    * Create a webhook handler for a specific hotel
    * @param hotelId - The hotel ID
-   * @param pmsType - The PMS type (mews, hotelspider, etc.)
+   * @param pmsType - The PMS type (mews, hotelspider, hotelpartner, etc.)
    * @returns Webhook handler instance
    */
   static createWebhookHandler(
@@ -57,6 +62,9 @@ export class PmsFactory {
       case 'hotelspider':
         return new HotelSpiderWebhookHandler(hotelId);
 
+      case 'hotelpartner':
+        return new HotelPartnerWebhookHandler(hotelId);
+
       default:
         throw new Error(`Unknown PMS type: ${pmsType}`);
     }
@@ -68,7 +76,7 @@ export class PmsFactory {
    * @returns True if supported
    */
   static isSupported(pmsType: PmsType): boolean {
-    return pmsType === 'mews' || pmsType === 'hotelspider';
+    return pmsType === 'mews' || pmsType === 'hotelspider' || pmsType === 'hotelpartner';
   }
 
   /**
@@ -76,6 +84,6 @@ export class PmsFactory {
    * @returns Array of supported PMS types
    */
   static getSupportedPmsTypes(): PmsType[] {
-    return ['mews', 'hotelspider'];
+    return ['mews', 'hotelspider', 'hotelpartner'];
   }
 }
