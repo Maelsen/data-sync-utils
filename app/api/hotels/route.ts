@@ -48,7 +48,7 @@ export async function GET() {
  * Body:
  * {
  *   name: string,
- *   pmsType: 'mews' | 'hotelspider',
+ *   pmsType: 'mews' | 'hotelspider' | 'hotelpartner',
  *   credentials: {
  *     // For Mews:
  *     mewsClientToken?: string,
@@ -57,6 +57,11 @@ export async function GET() {
  *     hotelspiderUsername?: string,
  *     hotelspiderPassword?: string,
  *     hotelspiderHotelCode?: string,
+ *     // For HotelPartner:
+ *     hotelpartnerUsername?: string,
+ *     hotelpartnerPassword?: string,
+ *     hotelpartnerHotelId?: string,
+ *     hotelpartnerExtraId?: string,
  *   }
  * }
  */
@@ -74,9 +79,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate PMS type
-    if (pmsType !== 'mews' && pmsType !== 'hotelspider') {
+    if (pmsType !== 'mews' && pmsType !== 'hotelspider' && pmsType !== 'hotelpartner') {
       return NextResponse.json(
-        { error: 'Invalid pmsType. Must be "mews" or "hotelspider"' },
+        { error: 'Invalid pmsType. Must be "mews", "hotelspider", or "hotelpartner"' },
         { status: 400 }
       );
     }
@@ -103,21 +108,45 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+    } else if (pmsType === 'hotelpartner') {
+      if (
+        !credentials.hotelpartnerUsername ||
+        !credentials.hotelpartnerPassword ||
+        !credentials.hotelpartnerHotelId
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'HotelPartner credentials require hotelpartnerUsername, hotelpartnerPassword, and hotelpartnerHotelId',
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Create hotel and credentials in a transaction
     const result = await prisma.$transaction(async (tx) => {
+      // Determine externalId and mewsId based on PMS type
+      let externalId: string;
+      let mewsId: string;
+      if (pmsType === 'mews') {
+        externalId = 'pending-verification';
+        mewsId = 'pending-verification';
+      } else if (pmsType === 'hotelspider') {
+        externalId = credentials.hotelspiderHotelCode;
+        mewsId = `hs-${credentials.hotelspiderHotelCode}`;
+      } else {
+        externalId = credentials.hotelpartnerHotelId;
+        mewsId = `hotelpartner-${credentials.hotelpartnerHotelId}`;
+      }
+
       // Create hotel
       const hotel = await tx.hotel.create({
         data: {
           name,
           pmsType: pmsType as PmsType,
-          externalId:
-            pmsType === 'mews'
-              ? 'pending-verification' // Will be updated after first sync
-              : credentials.hotelspiderHotelCode,
-          mewsId:
-            pmsType === 'mews' ? 'pending-verification' : `hs-${credentials.hotelspiderHotelCode}`,
+          externalId,
+          mewsId,
         },
       });
 
@@ -136,7 +165,17 @@ export async function POST(request: NextRequest) {
             hotelId: hotel.id,
             hotelspiderUsername: encrypt(credentials.hotelspiderUsername),
             hotelspiderPassword: encrypt(credentials.hotelspiderPassword),
-            hotelspiderHotelCode: credentials.hotelspiderHotelCode, // Not encrypted
+            hotelspiderHotelCode: credentials.hotelspiderHotelCode,
+          },
+        });
+      } else if (pmsType === 'hotelpartner') {
+        await tx.hotelCredentials.create({
+          data: {
+            hotelId: hotel.id,
+            hotelpartnerUsername: encrypt(credentials.hotelpartnerUsername),
+            hotelpartnerPassword: encrypt(credentials.hotelpartnerPassword),
+            hotelpartnerHotelId: credentials.hotelpartnerHotelId,
+            hotelpartnerExtraId: credentials.hotelpartnerExtraId || null,
           },
         });
       }
