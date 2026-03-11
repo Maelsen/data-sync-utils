@@ -147,6 +147,23 @@ model ApiLog {
   @@index([success, timestamp])
 }
 
+// API keys for external PMS developers (per-PMS, issued on request)
+model ApiKey {
+  id          String   @id @default(uuid())
+  pmsName     String   // PMS system name (e.g. "protel", "opera", "apaleo")
+  keyHash     String   @unique // SHA-256 hash of the API key (never store plain key)
+  keyPrefix   String   // First 8 chars of the key for identification (e.g. "a3f8b2c1...")
+  contactName String?  // Contact person at the PMS company
+  contactEmail String? // Contact email
+  active      Boolean  @default(true)
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([pmsName])
+  @@index([active])
+}
+
 // NEW: System health tracking
 model SystemHealth {
   id              String   @id @default(uuid())

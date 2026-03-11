@@ -16,8 +16,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { createHash } from 'crypto';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Hash an API key using SHA-256 (same as admin endpoint)
+ */
+function hashKey(key: string): string {
+  return createHash('sha256').update(key).digest('hex');
+}
 
 // Valid event types
 const VALID_EVENTS = ['order.created', 'order.updated', 'order.canceled', 'checkin.confirmed'] as const;
@@ -125,17 +133,8 @@ function validateCancelPayload(order: IncomingWebhookPayload['order']): string[]
 }
 
 export async function POST(request: NextRequest) {
-  // --- Authentication ---
+  // --- Authentication (DB-based per-PMS API keys) ---
   const authHeader = request.headers.get('authorization');
-  const expectedKey = process.env.WEBHOOK_API_KEY;
-
-  if (!expectedKey) {
-    console.error('WEBHOOK_API_KEY environment variable not configured');
-    return NextResponse.json(
-      { error: 'Server configuration error' },
-      { status: 500 }
-    );
-  }
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return NextResponse.json(
@@ -145,15 +144,36 @@ export async function POST(request: NextRequest) {
   }
 
   const providedKey = authHeader.slice(7); // Remove "Bearer "
-  if (providedKey !== expectedKey) {
+  const keyHash = hashKey(providedKey);
+
+  // Look up the key in the database
+  const apiKeyRecord = await prisma.apiKey.findUnique({
+    where: { keyHash },
+  });
+
+  if (!apiKeyRecord) {
     return NextResponse.json(
       { error: 'Invalid API key' },
       { status: 401 }
     );
   }
 
-  // --- Parse PMS Name ---
-  const pmsName = request.headers.get('x-pms-name')?.toLowerCase().trim();
+  if (!apiKeyRecord.active) {
+    return NextResponse.json(
+      { error: 'API key has been deactivated. Contact marlin@clickatree.com' },
+      { status: 403 }
+    );
+  }
+
+  // Update last used timestamp (fire-and-forget, don't block the response)
+  prisma.apiKey.update({
+    where: { id: apiKeyRecord.id },
+    data: { lastUsedAt: new Date() },
+  }).catch(() => {}); // Ignore errors on this non-critical update
+
+  // PMS name comes from the API key record (trusted source)
+  // But X-PMS-Name header can override for multi-brand PMS companies
+  const pmsName = (request.headers.get('x-pms-name')?.toLowerCase().trim()) || apiKeyRecord.pmsName;
   if (!pmsName) {
     return NextResponse.json(
       { error: 'Missing X-PMS-Name header. Provide the name of your PMS system.' },
