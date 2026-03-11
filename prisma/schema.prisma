@@ -16,6 +16,7 @@ enum PmsType {
   mews
   hotelspider
   hotelpartner
+  generic
 }
 
 model Hotel {
