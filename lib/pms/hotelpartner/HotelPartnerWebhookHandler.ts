@@ -43,6 +43,17 @@
  *     { "item_id": 4940, "item_name": "Baum pflanzen", "item_category": "Extras", "price": 5.95, "quantity": 1 }
  *   ]
  * }
+ *
+ * Also supports the packages event format (from HotelPartner direct webhook):
+ * {
+ *   "hotelId": 2076,
+ *   "resId": "799320023",
+ *   "checkIn": "2026-05-05",
+ *   "checkOut": "2026-05-06",
+ *   "packages": [
+ *     { "id": "4917", "name": "Click a Tree", "quantity": 1, "price": 24 }
+ *   ]
+ * }
  */
 
 import {
@@ -125,6 +136,8 @@ export class HotelPartnerWebhookHandler implements IPmsWebhookHandler {
         return this.processGtmPurchaseEvent(payload);
       } else if (payload.extras || payload.extra) {
         return this.processSimpleExtraEvent(payload);
+      } else if (payload.packages && Array.isArray(payload.packages)) {
+        return this.processPackagesEvent(payload);
       } else {
         // Try to extract tree orders from any reasonable payload structure
         return this.processGenericPayload(payload);
@@ -298,6 +311,63 @@ export class HotelPartnerWebhookHandler implements IPmsWebhookHandler {
   }
 
   /**
+   * Process packages event format (from HotelPartner direct webhook)
+   */
+  private async processPackagesEvent(payload: any): Promise<WebhookProcessResult> {
+    const orders: TreeOrderData[] = [];
+    const { hotelId, resId, checkIn, checkOut, packages } = payload;
+
+    const eventId = `hp-pkg-${resId || Date.now()}`;
+    const existing = await prisma.webhookEvent.findUnique({ where: { eventId } });
+    if (existing?.processed) {
+      return { success: true, processedOrders: [], metadata: { duplicate: true, eventId } };
+    }
+
+    await prisma.webhookEvent.create({
+      data: {
+        eventType: 'packages',
+        eventId,
+        pmsType: 'hotelpartner',
+        hotelId: this.hotelId,
+        payload,
+        processed: false,
+      },
+    });
+
+    for (const pkg of packages || []) {
+      if (this.isTreeExtra(pkg)) {
+        orders.push({
+          externalId: `hotelpartner-${resId || eventId}-${pkg.id || 'tree'}`,
+          quantity: parseInt(pkg.quantity || '1', 10),
+          amount: parseFloat(pkg.price || '0') * parseInt(pkg.quantity || '1', 10),
+          currency: pkg.currency || 'EUR',
+          bookedAt: new Date(),
+          reservationId: resId,
+          metadata: {
+            packageId: pkg.id,
+            packageName: pkg.name,
+            checkin: checkIn,
+            checkout: checkOut,
+            hotelId: hotelId?.toString(),
+            source: 'packages',
+          },
+        });
+      }
+    }
+
+    await prisma.webhookEvent.update({
+      where: { eventId },
+      data: { processed: true, processedAt: new Date() },
+    });
+
+    return {
+      success: true,
+      processedOrders: orders,
+      metadata: { eventId, source: 'packages', treeOrderCount: orders.length },
+    };
+  }
+
+  /**
    * Try to extract tree orders from any payload
    */
   private async processGenericPayload(payload: any): Promise<WebhookProcessResult> {
@@ -342,10 +412,10 @@ export class HotelPartnerWebhookHandler implements IPmsWebhookHandler {
     if (!extra) return false;
 
     // Check by known extra ID
-    if (this.treeExtraId && extra.id === this.treeExtraId) return true;
+    if (this.treeExtraId && String(extra.id) === String(this.treeExtraId)) return true;
 
     const hotelKnownId = KNOWN_TREE_EXTRA_IDS[this.hotelId];
-    if (hotelKnownId && extra.id === hotelKnownId) return true;
+    if (hotelKnownId && String(extra.id) === String(hotelKnownId)) return true;
 
     // Check by name
     const name = (extra.name || extra.internName || '').toLowerCase();
@@ -359,10 +429,10 @@ export class HotelPartnerWebhookHandler implements IPmsWebhookHandler {
     if (!item) return false;
 
     // Check by known extra ID
-    if (this.treeExtraId && item.item_id === this.treeExtraId) return true;
+    if (this.treeExtraId && String(item.item_id) === String(this.treeExtraId)) return true;
 
     const hotelKnownId = KNOWN_TREE_EXTRA_IDS[this.hotelId];
-    if (hotelKnownId && item.item_id === hotelKnownId) return true;
+    if (hotelKnownId && String(item.item_id) === String(hotelKnownId)) return true;
 
     // Check by name and category
     const name = (item.item_name || '').toLowerCase();
