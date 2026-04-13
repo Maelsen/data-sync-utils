@@ -30,9 +30,23 @@ export interface HotelPartnerCredentials {
 }
 
 /**
+ * SIHOT@360° Open API credentials interface
+ */
+export interface SihotCredentials {
+  username: string;
+  password: string;
+  hotelId: string;
+  productId: string;
+}
+
+/**
  * Generic PMS credentials type
  */
-export type PmsCredentials = MewsCredentials | HotelSpiderCredentials | HotelPartnerCredentials;
+export type PmsCredentials =
+  | MewsCredentials
+  | HotelSpiderCredentials
+  | HotelPartnerCredentials
+  | SihotCredentials;
 
 /**
  * Credential Manager
@@ -152,9 +166,48 @@ export class CredentialManager {
   }
 
   /**
+   * Get SIHOT credentials for a hotel
+   * @param hotelId - The hotel ID
+   * @returns Decrypted SIHOT credentials
+   * @throws Error if credentials not found or invalid
+   */
+  async getSihotCredentials(hotelId: string): Promise<SihotCredentials> {
+    try {
+      const creds = await prisma.hotelCredentials.findUnique({
+        where: { hotelId },
+      });
+
+      if (
+        !creds ||
+        !creds.sihotUsername ||
+        !creds.sihotPassword ||
+        !creds.sihotHotelId ||
+        !creds.sihotProductId
+      ) {
+        throw new Error(`SIHOT credentials not found for hotel ${hotelId}`);
+      }
+
+      const username = decrypt(creds.sihotUsername);
+      const password = decrypt(creds.sihotPassword);
+
+      return {
+        username,
+        password,
+        hotelId: creds.sihotHotelId,
+        productId: creds.sihotProductId,
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to get SIHOT credentials: ${error.message}`);
+      }
+      throw new Error('Failed to get SIHOT credentials: Unknown error');
+    }
+  }
+
+  /**
    * Get credentials for a hotel based on its PMS type
    * @param hotelId - The hotel ID
-   * @param pmsType - The PMS type (mews, hotelspider, or hotelpartner)
+   * @param pmsType - The PMS type (mews, hotelspider, hotelpartner, or sihot)
    * @returns Decrypted PMS credentials
    * @throws Error if credentials not found or invalid
    */
@@ -168,6 +221,8 @@ export class CredentialManager {
       return this.getHotelSpiderCredentials(hotelId);
     } else if (pmsType === 'hotelpartner') {
       return this.getHotelPartnerCredentials(hotelId);
+    } else if (pmsType === 'sihot') {
+      return this.getSihotCredentials(hotelId);
     } else {
       throw new Error(`Unknown PMS type: ${pmsType}`);
     }
@@ -211,6 +266,14 @@ export class CredentialManager {
           !!hpCreds.username &&
           !!hpCreds.password &&
           !!hpCreds.hotelId
+        );
+      } else if (pmsType === 'sihot') {
+        const shCreds = creds as SihotCredentials;
+        return (
+          !!shCreds.username &&
+          !!shCreds.password &&
+          !!shCreds.hotelId &&
+          !!shCreds.productId
         );
       }
 

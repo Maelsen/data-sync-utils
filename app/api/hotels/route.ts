@@ -62,6 +62,11 @@ export async function GET() {
  *     hotelpartnerPassword?: string,
  *     hotelpartnerHotelId?: string,
  *     hotelpartnerExtraId?: string,
+ *     // For SIHOT:
+ *     sihotUsername?: string,
+ *     sihotPassword?: string,
+ *     sihotHotelId?: string,
+ *     sihotProductId?: string,
  *   }
  * }
  */
@@ -79,9 +84,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate PMS type
-    if (pmsType !== 'mews' && pmsType !== 'hotelspider' && pmsType !== 'hotelpartner') {
+    if (
+      pmsType !== 'mews' &&
+      pmsType !== 'hotelspider' &&
+      pmsType !== 'hotelpartner' &&
+      pmsType !== 'sihot'
+    ) {
       return NextResponse.json(
-        { error: 'Invalid pmsType. Must be "mews", "hotelspider", or "hotelpartner"' },
+        { error: 'Invalid pmsType. Must be "mews", "hotelspider", "hotelpartner", or "sihot"' },
         { status: 400 }
       );
     }
@@ -122,6 +132,21 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+    } else if (pmsType === 'sihot') {
+      if (
+        !credentials.sihotUsername ||
+        !credentials.sihotPassword ||
+        !credentials.sihotHotelId ||
+        !credentials.sihotProductId
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'SIHOT credentials require sihotUsername, sihotPassword, sihotHotelId, and sihotProductId',
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Create hotel and credentials in a transaction
@@ -135,9 +160,13 @@ export async function POST(request: NextRequest) {
       } else if (pmsType === 'hotelspider') {
         externalId = credentials.hotelspiderHotelCode;
         mewsId = `hs-${credentials.hotelspiderHotelCode}`;
-      } else {
+      } else if (pmsType === 'hotelpartner') {
         externalId = credentials.hotelpartnerHotelId;
         mewsId = `hotelpartner-${credentials.hotelpartnerHotelId}`;
+      } else {
+        // sihot
+        externalId = credentials.sihotHotelId;
+        mewsId = `sihot-${credentials.sihotHotelId}`;
       }
 
       // Create hotel
@@ -176,6 +205,16 @@ export async function POST(request: NextRequest) {
             hotelpartnerPassword: encrypt(credentials.hotelpartnerPassword),
             hotelpartnerHotelId: credentials.hotelpartnerHotelId,
             hotelpartnerExtraId: credentials.hotelpartnerExtraId || null,
+          },
+        });
+      } else if (pmsType === 'sihot') {
+        await tx.hotelCredentials.create({
+          data: {
+            hotelId: hotel.id,
+            sihotUsername: encrypt(credentials.sihotUsername),
+            sihotPassword: encrypt(credentials.sihotPassword),
+            sihotHotelId: credentials.sihotHotelId,
+            sihotProductId: credentials.sihotProductId,
           },
         });
       }

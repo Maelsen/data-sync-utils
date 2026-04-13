@@ -16,6 +16,7 @@ enum PmsType {
   mews
   hotelspider
   hotelpartner
+  sihot
   generic
 }
 
@@ -124,6 +125,12 @@ model HotelCredentials {
   hotelpartnerPassword String?  // Encrypted API password
   hotelpartnerHotelId  String?  // Plain text hotel ID in res-online (e.g., "3149")
   hotelpartnerExtraId  String?  // Plain text tree extra ID (e.g., "4940")
+
+  // SIHOT-specific credentials (encrypted) for the SIHOT@360° Open API
+  sihotUsername  String?  // Encrypted API username (e.g., "CR!")
+  sihotPassword  String?  // Encrypted API password
+  sihotHotelId   String?  // Plain text SIHOT hotel number (e.g., "1")
+  sihotProductId String?  // Plain text ProductID of our SIHOT integration (e.g., "5806d28ff34f40359e20ba0398062061")
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
